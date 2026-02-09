@@ -1,0 +1,158 @@
+:root {
+  --bg: #0d1016;
+  --panel: #111725;
+  --panel-border: #2a3448;
+  --text: #d9e2f1;
+  --muted: #91a0bb;
+  --accent: #5de4a1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #1c2233, var(--bg) 45%);
+  color: var(--text);
+  font-family: Consolas, "Courier New", monospace;
+  min-height: 100vh;
+}
+
+.layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 28px;
+}
+
+.header {
+  margin-bottom: 12px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.header p {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.terminal-shell {
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, #0e1420, var(--panel));
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.35);
+}
+
+.terminal {
+  margin: 0;
+  padding: 16px;
+  min-height: 56vh;
+  max-height: 70vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.35;
+  font-size: 0.96rem;
+}
+
+.command-row {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.prompt {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+#command-input {
+  width: 100%;
+  border: 1px solid var(--panel-border);
+  background: #090d17;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+button {
+  border: 1px solid var(--panel-border);
+  background: #1a2334;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.08);
+}
+
+button:disabled,
+input:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.status-line {
+  margin: 10px 2px 0;
+  color: var(--muted);
+  min-height: 1.2em;
+}
+
+.status-line.over {
+  color: #ff9f9f;
+}
+
+.ansi-blue {
+  color: #52a8ff;
+}
+
+.ansi-yellow {
+  color: #f6db5b;
+}
+
+.ansi-orange {
+  color: #ffad5d;
+}
+
+.ansi-red {
+  color: #ff7b7b;
+}
+
+.ansi-green {
+  color: #74f589;
+}
+
+.ansi-purple {
+  color: #cd8dff;
+}
+
+.ansi-pink {
+  color: #ff95da;
+}
+
+@media (max-width: 760px) {
+  .terminal {
+    min-height: 50vh;
+    max-height: 62vh;
+    font-size: 0.9rem;
+  }
+
+  .command-row {
+    grid-template-columns: auto 1fr;
+  }
+
+  .command-row button {
+    width: 100%;
+  }
+}

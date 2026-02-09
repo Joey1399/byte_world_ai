@@ -519,6 +519,60 @@ class Engine:
             "equipment": equipment,
         }
 
+    def _resolve_turn(self, state: GameState, command: str, args: List[str]) -> List[str]:
+        """Resolve one parsed command including quest/victory side effects."""
+        action_messages = self._handle_command(state, command, args)
+
+        quest_messages = quest.check_and_advance(state)
+        action_messages.extend(quest_messages)
+
+        if state.victory and "victory_announced" not in state.flags:
+            state.flags.add("victory_announced")
+            action_messages.extend(
+                [
+                    "You have completed the main storyline.",
+                    "You can keep exploring or type `quit`.",
+                ]
+            )
+
+        return action_messages
+
+    def _render_screen(
+        self,
+        state: GameState,
+        action_messages: List[str] | None = None,
+        include_banner: bool = False,
+    ) -> str:
+        """Render the current game screen for terminal-like clients."""
+        parts: List[str] = []
+        if include_banner:
+            parts.append(ui.banner())
+
+        if action_messages:
+            action_block = ui.format_action_block(action_messages)
+            if action_block:
+                parts.append(action_block)
+
+        if not state.game_over:
+            hints = ui.format_messages(self._build_input_hints(state))
+            if hints:
+                parts.append(hints)
+
+        return "\n".join(part for part in parts if part)
+
+    def initial_screen(self, state: GameState) -> str:
+        """Render first screen content for a new game session."""
+        intro_messages = [*exploration.look(state), "Type `help` for commands."]
+        return self._render_screen(state, action_messages=intro_messages, include_banner=True)
+
+    def process_raw_command(self, state: GameState, raw_command: str) -> str:
+        """Parse and resolve one raw command and return rendered screen text."""
+        command, args = parse_command(raw_command)
+        if not command:
+            return self._render_screen(state)
+        action_messages = self._resolve_turn(state, command, args)
+        return self._render_screen(state, action_messages=action_messages)
+
     def _handle_command(self, state: GameState, command: str, args: List[str]) -> List[str]:
         if state.active_encounter:
             allowed = {
@@ -657,8 +711,7 @@ class Engine:
         """Run the command loop until quit."""
         self._clear_terminal()
         self.output_fn(ui.banner())
-        self._emit_action(exploration.look(state))
-        self._emit_action(["Type `help` for commands."])
+        self._emit_action([*exploration.look(state), "Type `help` for commands."])
 
         while not state.game_over:
             self._emit_lines(self._build_input_hints(state))
@@ -673,18 +726,5 @@ class Engine:
                 continue
 
             self._clear_terminal()
-            action_messages = self._handle_command(state, command, args)
-
-            quest_messages = quest.check_and_advance(state)
-            action_messages.extend(quest_messages)
-
-            if state.victory and "victory_announced" not in state.flags:
-                state.flags.add("victory_announced")
-                action_messages.extend(
-                    [
-                        "You have completed the main storyline.",
-                        "You can keep exploring or type `quit`.",
-                    ]
-                )
-
+            action_messages = self._resolve_turn(state, command, args)
             self._emit_action(action_messages)

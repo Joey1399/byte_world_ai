@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>byte_world_ai Web CLI</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="layout">
+    <header class="header">
+      <h1>byte_world_ai</h1>
+      <p>Web terminal mode</p>
+    </header>
+
+    <section class="terminal-shell" aria-live="polite">
+      <pre id="terminal" class="terminal">{{ screen_html|safe }}</pre>
+    </section>
+
+    <form id="command-form" class="command-row" autocomplete="off">
+      <label for="command-input" class="prompt">&gt;</label>
+      <input
+        id="command-input"
+        name="command"
+        type="text"
+        maxlength="200"
+        placeholder="Type a command (help, move north, fight...)"
+        autofocus
+      >
+      <button type="submit">Send</button>
+      <button type="button" id="reset-button">New Game</button>
+    </form>
+
+    <p id="status-line" class="status-line{% if game_over %} over{% endif %}">
+      {% if game_over %}
+      Game over. Start a new game to continue.
+      {% else %}
+      Enter a command to continue.
+      {% endif %}
+    </p>
+  </main>
+
+  <script>
+    window.BYTE_WORLD_BOOTSTRAP = {
+      gameOver: {{ "true" if game_over else "false" }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
