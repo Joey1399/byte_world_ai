@@ -1,6 +1,8 @@
 # byte_world_ai
 
-`byte_world_ai` is a terminal-style RPG that can run locally as a CLI or as a browser-hosted CLI emulator.
+`byte_world_ai` is a terminal-style RPG that runs as:
+- a local Python CLI, and
+- a public browser version hosted on GitHub Pages.
 
 ## Local CLI
 
@@ -8,37 +10,32 @@
 python main.py
 ```
 
-## Local web mode
+## Local web preview (GitHub Pages build)
 
 ```bash
-python -m venv .venv
-. .venv/Scripts/activate  # Windows PowerShell: .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python web_app.py
+python -m http.server 8000
 ```
 
-Open `http://localhost:5000`.
+Open `http://localhost:8000`.
 
-## Heroku deploy
+This serves the static site (`index.html`) which runs the Python game engine in-browser via Pyodide.
 
-This repository includes:
-- `Procfile` (`web: gunicorn web_app:app`)
-- `requirements.txt`
-- `runtime.txt`
+## GitHub Pages deploy
 
-Deploy steps:
+This repo includes a Pages workflow at `.github/workflows/pages.yml`.
+
+One-time setup in GitHub:
+- Repository `Settings` -> `Pages`
+- Source: `GitHub Actions`
+
+After that, every push to `main` auto-deploys.
+
+Manual enable with GitHub CLI (optional):
 
 ```bash
-heroku login
-heroku create <your-app-name>
-heroku config:set SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
-git push heroku main
-heroku open
+gh api repos/Joey1399/byte_world_ai/pages -X POST -f build_type=workflow
 ```
 
-If the app already exists:
+Live URL pattern:
 
-```bash
-heroku git:remote -a <your-app-name>
-git push heroku main
-```
+`https://joey1399.github.io/byte_world_ai/`
