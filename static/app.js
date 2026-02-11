@@ -571,7 +571,7 @@
   }
 
   async function bootstrapGameApi() {
-    const bootstrapCode = `
+    const bootstrapCode = String.raw`
 import base64
 import json
 import os
@@ -900,7 +900,7 @@ def _boxed_art(title: str, glyph_lines: list[str]) -> str:
     for line in lines:
         output.append(f"| {line.ljust(width)} |")
     output.append(border)
-    return "\\n".join(output)
+    return "\n".join(output)
 
 def _location_art(location_id: str) -> tuple[str, str]:
     loc = LOCATIONS.get(location_id, {})
@@ -934,7 +934,7 @@ def _enemy_art(enemy_id: str) -> tuple[str, str]:
 def _set_art(title: str, ascii_text: str) -> None:
     global _current_art_title, _current_art_ascii
     _current_art_title = str(title or "Scene Art")
-    _current_art_ascii = str(ascii_text or "").strip("\\n")
+    _current_art_ascii = str(ascii_text or "").strip("\n")
 
 def _matching_npc_id_from_command(command_text: str) -> str | None:
     if not command_text.startswith("talk "):
