@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Dict, Iterable, List
 
 from content.enemies import ENEMIES
@@ -14,6 +15,8 @@ from content.world import NPCS
 
 DIVIDER = "-" * 64
 ACTION_SEPARATOR = "=" * 64
+_TITLE_TEXT_PATH = Path(__file__).resolve().parents[1] / "content" / "ascii" / "title_text.txt"
+_TITLE_TEXT_FALLBACK = "byte_world_ai :: CLI adventure"
 
 ANSI_RESET = "\033[0m"
 ANSI_BLUE = "\033[38;5;39m"
@@ -216,10 +219,21 @@ def format_world_map(current_location_name: str, direction_labels: dict[str, str
 
 
 def banner() -> str:
+    title_text = _TITLE_TEXT_FALLBACK
+    for candidate in (_TITLE_TEXT_PATH, Path("content/ascii/title_text.txt")):
+        try:
+            loaded = candidate.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        normalized = loaded.replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+        if normalized.strip():
+            title_text = normalized
+            break
+
     return "\n".join(
         [
             DIVIDER,
-            "byte_world_ai :: CLI adventure",
+            title_text,
             DIVIDER,
         ]
     )

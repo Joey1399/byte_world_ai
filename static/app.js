@@ -26,6 +26,7 @@
 
   const PYODIDE_JS_URL = "https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js";
   const SOURCE_FILES = [
+    "content/ascii/title_text.txt",
     "content/__init__.py",
     "content/enemies.py",
     "content/items.py",
@@ -766,10 +767,8 @@
     const bootstrapCode = String.raw`
 import base64
 import json
-import math
 import os
 import pickle
-from pathlib import Path
 
 os.environ["BYTE_WORLD_AI_FORCE_COLOR"] = "1"
 os.environ["BYTE_WORLD_AI_NO_CLEAR"] = "1"
@@ -786,100 +785,7 @@ _state = create_initial_state()
 _current_art_title = "Scene Art"
 _current_art_ascii = ""
 _current_art_image = ""
-
-def _load_ascii_art(path: str, fallback: str = "", max_width: int = 72, max_height: int = 34) -> str:
-    try:
-        raw = Path(path).read_text(encoding="utf-8")
-    except Exception:
-        return str(fallback or "").strip("\n")
-
-    lines = [line.rstrip("\r") for line in raw.splitlines()]
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-
-    if not lines:
-        return str(fallback or "").strip("\n")
-
-    non_empty = [line for line in lines if line.strip()]
-    if not non_empty:
-        return str(fallback or "").strip("\n")
-
-    left = min(len(line) - len(line.lstrip(" ")) for line in non_empty)
-    right = max(len(line.rstrip()) for line in non_empty)
-    if right <= left:
-        return str(fallback or "").strip("\n")
-
-    cropped = [line[left:right].rstrip() for line in lines]
-    while cropped and not cropped[0].strip():
-        cropped.pop(0)
-    while cropped and not cropped[-1].strip():
-        cropped.pop()
-    if not cropped:
-        return str(fallback or "").strip("\n")
-
-    row_step = max(1, int(math.ceil(len(cropped) / max(1, max_height))))
-    row_sampled = [cropped[index] for index in range(0, len(cropped), row_step)]
-    if not row_sampled:
-        return str(fallback or "").strip("\n")
-
-    widest = max(len(line) for line in row_sampled)
-    col_step = max(1, int(math.ceil(widest / max(1, max_width))))
-    scaled = [
-        "".join(line[index] for index in range(0, len(line), col_step)).rstrip()
-        for line in row_sampled
-    ]
-
-    while scaled and not scaled[0].strip():
-        scaled.pop(0)
-    while scaled and not scaled[-1].strip():
-        scaled.pop()
-    if not scaled:
-        return str(fallback or "").strip("\n")
-
-    centered = [line.center(max_width) for line in scaled]
-    return "\n".join(centered)
-
-_WISE_OLD_MAN_FALLBACK = """
-              ___
-          .-''   ''-.
-        .'  .-.-.    '.
-       /   /  _  \\     \\
-      |   |  (o)  |     |
-      |   |   ^   |     |
-      |   |  '-'  |     |
-      |    \\.___./     |
-       \\      |       /
-        '.    |    _.'
-          '-._|_.-'
-            /_|_\\
-         __/  |  \\__
-        /___  |  ___\\
-            |_|_|
-""".strip("\n")
-
-_GIANT_FROG_FALLBACK = """
-               _   _
-             _(.)_(.)_
-          _ (   _   ) _ 
-         / \\/-----'\\/ \\
-       __\\ ( (\\___/) ) /__
-       )   /\\( 0 0 )/\\   (
-       )  /  \\  ^  /  \\  (
-       )  \\__/\\___/\\__/  (
-          /_/ /___\\ \\_\\
-""".strip("\n")
-
-_OLD_SHACK_WISE_OLD_MAN_ASCII = _load_ascii_art(
-    "content/art/ascii-art.txt",
-    fallback=_WISE_OLD_MAN_FALLBACK,
-)
 _WISE_OLD_MAN_IMAGE = "content/art/wise_old_man.png"
-_GIANT_FROG_ASCII = _load_ascii_art(
-    "content/art/frog.txt",
-    fallback=_GIANT_FROG_FALLBACK,
-)
 _GIANT_FROG_IMAGE = "content/art/giant_frog.png"
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
@@ -1259,8 +1165,8 @@ def _boxed_art(title: str, glyph_lines: list[str]) -> str:
 def _location_art(location_id: str) -> tuple[str, str, str]:
     loc = LOCATIONS.get(location_id, {})
     title = loc.get("name", str(location_id))
-    if location_id == "old_shack" and _OLD_SHACK_WISE_OLD_MAN_ASCII:
-        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII, _WISE_OLD_MAN_IMAGE
+    if location_id == "old_shack":
+        return title, "", _WISE_OLD_MAN_IMAGE
     glyph = _LOCATION_GLYPHS.get(location_id)
     if not glyph:
         glyph = [
@@ -1275,8 +1181,8 @@ def _location_art(location_id: str) -> tuple[str, str, str]:
 def _npc_art(npc_id: str) -> tuple[str, str, str]:
     npc = NPCS.get(npc_id, {})
     title = npc.get("name", npc_id)
-    if npc_id == "wise_old_man" and _state.current_location_id == "old_shack" and _OLD_SHACK_WISE_OLD_MAN_ASCII:
-        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII, _WISE_OLD_MAN_IMAGE
+    if npc_id == "wise_old_man" and _state.current_location_id == "old_shack":
+        return title, "", _WISE_OLD_MAN_IMAGE
     glyph = _NPC_GLYPHS.get(npc_id, _NPC_GLYPHS.get("wise_old_man", []))
     return title, _boxed_art(title, glyph), ""
 
@@ -1284,7 +1190,7 @@ def _enemy_art(enemy_id: str) -> tuple[str, str, str]:
     enemy = ENEMIES.get(enemy_id, {})
     title = enemy.get("name", enemy_id)
     if enemy_id == "giant_frog":
-        return title, _GIANT_FROG_ASCII, _GIANT_FROG_IMAGE
+        return title, "", _GIANT_FROG_IMAGE
     if enemy.get("category") == "boss":
         glyph = _BOSS_GLYPHS
     else:
