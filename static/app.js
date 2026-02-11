@@ -22,6 +22,7 @@
     "content/items.py",
     "content/quests.py",
     "content/world.py",
+    "content/art/ascii-art.txt",
     "game/__init__.py",
     "game/commands.py",
     "game/engine.py",
@@ -593,6 +594,7 @@ import base64
 import json
 import os
 import pickle
+from pathlib import Path
 
 os.environ["BYTE_WORLD_AI_FORCE_COLOR"] = "1"
 os.environ["BYTE_WORLD_AI_NO_CLEAR"] = "1"
@@ -608,40 +610,23 @@ from systems import quest
 _engine = Engine()
 _state = create_initial_state()
 _current_art_title = "Scene Art"
-_SAMPLE_ASCII_ART = """
-                         XX###XX
-                      XX###########XX
-                    XX###############XX
-                  XX#########   ########XX
-                 X##########     #########X
-                X##########       #########X
-               X###########       ##########X
-               X###########       ##########X
-               X###########       ##########X
-               X############     ###########X
-                X###########################X
-                 X#########################X
-                  XX#####################XX
-                   X#####################X
-                  X#######################X
-                 X#########################X
-                X#############   ###########X
-               X#############     ###########X
-              X##############     ###########X
-             X###############     ###########X
-            X################     ###########X
-            X###############################X
-            X###############################X
-            X###############################X
-             X#############################X
-              XX#########################XX
-                XX#####################XX
-                  XXX###############XXX
-                     XXXXXXXXXXXXXXX
-""".strip("\n")
 _current_art_ascii = ""
 _current_art_image = ""
-_WISE_OLD_MAN_SHACK_ART_IMAGE = "ascii-art.png"
+
+def _load_ascii_art(path: str) -> str:
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+    lines = [line.rstrip("\r") for line in raw.splitlines()]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+_OLD_SHACK_WISE_OLD_MAN_ASCII = _load_ascii_art("content/art/ascii-art.txt")
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
     "old_shack": [
@@ -924,6 +909,8 @@ def _boxed_art(title: str, glyph_lines: list[str]) -> str:
 def _location_art(location_id: str) -> tuple[str, str]:
     loc = LOCATIONS.get(location_id, {})
     title = loc.get("name", str(location_id))
+    if location_id == "old_shack" and _OLD_SHACK_WISE_OLD_MAN_ASCII:
+        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII
     glyph = _LOCATION_GLYPHS.get(location_id)
     if not glyph:
         glyph = [
@@ -938,6 +925,8 @@ def _location_art(location_id: str) -> tuple[str, str]:
 def _npc_art(npc_id: str) -> tuple[str, str]:
     npc = NPCS.get(npc_id, {})
     title = npc.get("name", npc_id)
+    if npc_id == "wise_old_man" and _state.current_location_id == "old_shack" and _OLD_SHACK_WISE_OLD_MAN_ASCII:
+        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII
     glyph = _NPC_GLYPHS.get(npc_id, _NPC_GLYPHS.get("wise_old_man", []))
     return title, _boxed_art(title, glyph)
 
@@ -1457,10 +1446,7 @@ def web_process(command: str) -> str:
         npc_id = _matching_npc_id_from_command(command_text)
         if npc_id:
             npc_title, npc_ascii = _npc_art(npc_id)
-            if npc_id == "wise_old_man" and _state.current_location_id == "old_shack":
-                _set_art(npc_title, npc_ascii, _WISE_OLD_MAN_SHACK_ART_IMAGE)
-            else:
-                _set_art(npc_title, npc_ascii)
+            _set_art(npc_title, npc_ascii)
     elif (
         command_text.startswith("move ")
         and _state.current_location_id != previous_location
