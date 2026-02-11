@@ -4,7 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>byte_world_ai Web CLI</title>
-  <link rel="stylesheet" href="static/styles.css">
+  <link rel="stylesheet" href="static/styles.css?v=20260211a">
+  <style>
+    /* Critical fallback to keep a two-pane layout even during stale asset cache windows. */
+    .terminal-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .actions-shell {
+      border: 1px solid #2a3448;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .actions-title {
+      margin: 0;
+      padding: 12px 14px;
+      border-bottom: 1px solid #2a3448;
+    }
+
+    @media (max-width: 760px) {
+      .terminal-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
   <main class="layout">
@@ -45,6 +72,6 @@
     </div>
   </main>
 
-  <script src="static/app.js"></script>
+  <script src="static/app.js?v=20260211a"></script>
 </body>
 </html>
