@@ -85,6 +85,23 @@ def _check_exit_requirement(state: GameState, requirement: dict) -> bool:
     return True
 
 
+def _roll_random_enemy_id(state: GameState, encounters: list[tuple[str, int]]) -> Optional[str]:
+    if not encounters:
+        return None
+    total = sum(weight for _, weight in encounters)
+    if total <= 0:
+        return None
+    roll = state.rng.randint(1, total)
+    cursor = 0
+    selected_enemy = encounters[0][0]
+    for enemy_id, weight in encounters:
+        cursor += weight
+        if roll <= cursor:
+            selected_enemy = enemy_id
+            break
+    return selected_enemy
+
+
 def _maybe_spawn_random_encounter(state: GameState) -> List[str]:
     location = _location(state)
     if state.active_encounter:
@@ -96,15 +113,9 @@ def _maybe_spawn_random_encounter(state: GameState) -> List[str]:
     if state.rng.random() >= chance:
         return []
 
-    total = sum(weight for _, weight in encounters)
-    roll = state.rng.randint(1, total)
-    cursor = 0
-    selected_enemy = encounters[0][0]
-    for enemy_id, weight in encounters:
-        cursor += weight
-        if roll <= cursor:
-            selected_enemy = enemy_id
-            break
+    selected_enemy = _roll_random_enemy_id(state, encounters)
+    if not selected_enemy:
+        return []
     return combat.start_encounter(state, selected_enemy)
 
 
@@ -164,6 +175,25 @@ def move(state: GameState, direction: str) -> List[str]:
     return messages
 
 
+def hunt(state: GameState) -> List[str]:
+    """Force a creature encounter in the current area when available."""
+    if state.active_encounter:
+        return ["You are already in an encounter."]
+
+    location = _location(state)
+    encounters = location.get("encounters", [])
+    if not encounters:
+        return ["No roaming creatures can be hunted here right now."]
+
+    selected_enemy = _roll_random_enemy_id(state, encounters)
+    if not selected_enemy:
+        return ["You fail to find a target right now."]
+
+    messages = ["You search the area for a fight..."]
+    messages.extend(combat.start_encounter(state, selected_enemy))
+    return messages
+
+
 def _npc_id_from_query(state: GameState, query: str) -> Optional[str]:
     query = query.lower().strip()
     location = _location(state)
@@ -219,4 +249,3 @@ def talk(state: GameState, npc_query: str) -> List[str]:
         return messages
 
     return ["They have nothing to say."]
-

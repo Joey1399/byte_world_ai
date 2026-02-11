@@ -17,6 +17,17 @@ body {
   color: var(--text);
   font-family: Consolas, "Courier New", monospace;
   min-height: 100vh;
+  transition: background 220ms ease;
+}
+
+body.combat-active {
+  background: radial-gradient(circle at top, #2b1a1f, #151018 48%);
+}
+
+body.combat-active .terminal-shell,
+body.combat-active .actions-shell {
+  border-color: rgba(168, 78, 88, 0.8);
+  box-shadow: 0 18px 36px rgba(120, 20, 35, 0.35);
 }
 
 .layout {

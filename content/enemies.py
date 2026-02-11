@@ -514,11 +514,23 @@ AREA_ENCOUNTER_TABLES: Dict[str, List[tuple[str, int]]] = _register_location_cre
 
 RARITY_TABLES: Dict[str, List[tuple[str, int]]] = {
     "common_field": [
-        ("moonbite_dagger", 12),
-        ("echo_plate", 10),
-        ("warding_totem", 8),
+        ("moonbite_dagger", 16),
+        ("echo_plate", 14),
+        ("warding_totem", 12),
+        ("obsidian_amulet", 8),
+        ("dragon_ring", 5),
         ("skill_cache_10", 5),
         ("skill_cache_20", 3),
         ("skill_cache_30", 1),
-    ]
+    ],
+    "interesting_gear": [
+        ("crusty_sword", 15),
+        ("froghide_armor", 14),
+        ("obsidian_amulet", 10),
+        ("moonbite_dagger", 9),
+        ("echo_plate", 9),
+        ("warding_totem", 8),
+        ("dragon_ring", 4),
+        ("dragon_shield", 3),
+    ],
 }

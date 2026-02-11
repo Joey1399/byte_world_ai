@@ -349,6 +349,12 @@ class Engine:
         self._add_action(actions, "status", "View HP, combat stats, level, and equipped gear.")
         self._add_action(actions, "quest", "Show your current objective and hint.")
         self._add_action(actions, "map", "Show simple directional map.")
+        if location.get("encounters", []):
+            self._add_action(
+                actions,
+                "hunt",
+                "Force a creature encounter in this area for farming.",
+            )
         self._add_action(actions, "inventory", "List your inventory items.")
         self._add_action(actions, "help", "Open the full command menu.")
         self._add_action(actions, "quit", "End the game session.")
@@ -610,6 +616,9 @@ class Engine:
 
         if command == "sense":
             return exploration.sense(state)
+
+        if command == "hunt":
+            return exploration.hunt(state)
 
         if command == "move":
             if not args:

@@ -201,6 +201,23 @@
     terminal.scrollTop = 0;
   }
 
+  function appendScreen(screen) {
+    const block = ansiToHtml(screen);
+    if (!block) {
+      return;
+    }
+    if (terminal.innerHTML) {
+      terminal.innerHTML += `\n${block}`;
+    } else {
+      terminal.innerHTML = block;
+    }
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function setCombatTint(inCombat) {
+    document.body.classList.toggle("combat-active", Boolean(inCombat));
+  }
+
   function priorityScore(rawValue) {
     const num = Number(rawValue);
     if (!Number.isFinite(num)) {
@@ -374,10 +391,16 @@
     actionsEmpty.hidden = true;
   }
 
-  function renderPayload(payload) {
+  function renderPayload(payload, options = {}) {
+    const appendOnly = Boolean(options.appendOnly);
     lastPayload = payload;
-    renderScreen(payload.screen);
+    if (appendOnly) {
+      appendScreen(payload.screen);
+    } else {
+      renderScreen(payload.screen);
+    }
     renderActions(payload.actions_heading, payload.actions, payload.hints, Boolean(payload.game_over));
+    setCombatTint(payload.in_combat);
   }
 
   function parsePayload(payload) {
@@ -785,7 +808,7 @@ def _action_category(command: str) -> str:
     verb = command.split(" ", 1)[0].strip().lower() if command else ""
     if verb == "move":
         return "movement"
-    if verb in {"fight", "defend", "skill", "run", "joke", "bribe"}:
+    if verb in {"fight", "defend", "skill", "run", "joke", "bribe", "hunt"}:
         return "combat"
     if verb in {"quest", "talk", "map"}:
         return "quest"
@@ -870,6 +893,9 @@ def _action_priority(action: dict) -> int:
 
     if command == "talk wise old man" and "met_old_man" not in _state.flags:
         score = max(score, 185)
+
+    if verb == "hunt":
+        score = max(score, 78)
 
     if command == "quest":
         score = max(score, 95)
@@ -1051,6 +1077,7 @@ def _payload(screen: str) -> str:
         {
             "screen": _strip_hint_block(screen),
             "game_over": bool(_state.game_over),
+            "in_combat": bool(_state.active_encounter),
             "actions_heading": heading,
             "actions": actions,
             "hints": hints,
@@ -1061,7 +1088,14 @@ def web_initial() -> str:
     return _payload(_engine.initial_screen(_state))
 
 def web_process(command: str) -> str:
-    return _payload(_engine.process_raw_command(_state, command))
+    screen = _engine.process_raw_command(_state, command)
+    payload = json.loads(_payload(screen))
+    command_text = str(command or "").strip().lower()
+    screen_text = str(payload.get("screen", ""))
+    payload["append_only_notice"] = bool(
+        command_text.startswith("skill") and "is on cooldown for" in screen_text
+    )
+    return json.dumps(payload)
 
 def web_reset() -> str:
     global _state
@@ -1139,7 +1173,7 @@ def web_load_state(snapshot: str) -> str:
   async function handleCommand(command) {
     const payload = parsePayload(api.process(command));
     gameOver = Boolean(payload.game_over);
-    renderPayload(payload);
+    renderPayload(payload, { appendOnly: Boolean(payload.append_only_notice) });
     persistGameState();
     if (gameOver) {
       setStatus("Game over. Start a new game to continue.", true);

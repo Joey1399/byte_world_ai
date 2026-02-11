@@ -233,6 +233,7 @@ def help_text() -> str:
         ("info", "map", "Show a simple directional map from your current location."),
         ("info", "look", "Describe your current location and exits."),
         ("info", "sense", "Show subtle hints about this area."),
+        ("explore", "hunt", "Force a creature encounter in areas that have roaming enemies."),
         ("explore", "move <dir>", "Travel north/south/east/west/up/down (n/s/e/w/u/d aliases)."),
         ("social", "talk <npc>", "Talk to a visible NPC in your current location."),
         ("gear", "inventory", "List items in your inventory."),

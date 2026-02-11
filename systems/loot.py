@@ -81,10 +81,20 @@ def grant_rewards(state: GameState, enemy_id: str) -> List[str]:
         if rolled:
             drops.append(rolled)
 
-    if enemy.get("category") == "normal" and state.rng.random() < 0.04:
-        rare_roll = _weighted_pick(state.rng, RARITY_TABLES["common_field"])
-        if rare_roll:
-            drops.append(rare_roll)
+    if enemy.get("category") == "normal":
+        skill_density = int(location.get("skill_points_per_kill", 0))
+        interesting_chance = min(0.14 + (skill_density * 0.01), 0.28)
+        rare_chance = min(0.07 + (skill_density * 0.01), 0.2)
+
+        if state.rng.random() < interesting_chance:
+            interesting_roll = _weighted_pick(state.rng, RARITY_TABLES.get("interesting_gear", []))
+            if interesting_roll:
+                drops.append(interesting_roll)
+
+        if state.rng.random() < rare_chance:
+            rare_roll = _weighted_pick(state.rng, RARITY_TABLES.get("common_field", []))
+            if rare_roll:
+                drops.append(rare_roll)
 
     seen = set()
     for item_id in drops:
