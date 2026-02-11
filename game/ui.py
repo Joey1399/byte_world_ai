@@ -277,7 +277,6 @@ def help_text() -> str:
     lines.append("Notes:")
     lines.append("  - During encounters, movement/talk/train are blocked until you win, escape, or lose.")
     lines.append("  - `joke` and `bribe` are only valid during the goblin army negotiation phase.")
-    lines.append("  - In the web UI, the compass map is shown as a persistent panel.")
     lines.append("Color key:")
     lines.append(
         "  - "

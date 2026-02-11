@@ -10,8 +10,6 @@
   const artTitle = document.getElementById("art-title");
   const artPanel = document.getElementById("art-panel");
   const artImage = document.getElementById("art-image");
-  const mapPanel = document.getElementById("map-panel");
-  const mapEmpty = document.getElementById("map-empty");
   const actionsTitle = document.getElementById("actions-title");
   const actionsList = document.getElementById("actions-list");
   const actionsEmpty = document.getElementById("actions-empty");
@@ -256,7 +254,7 @@
       list.className = "status-list";
       for (const raw of listItems) {
         const item = document.createElement("li");
-        item.textContent = String(raw || "").trim() || "-";
+        item.innerHTML = ansiToHtml(String(raw || "").trim() || "-");
         list.appendChild(item);
       }
       section.appendChild(list);
@@ -265,7 +263,7 @@
 
     const value = document.createElement("p");
     value.className = "status-value";
-    value.textContent = String(valueText || "-");
+    value.innerHTML = ansiToHtml(String(valueText || "-"));
     section.appendChild(value);
     return section;
   }
@@ -284,7 +282,7 @@
     }
 
     const levelLine = `Level ${data.level || 1}  ${data.player_name || "Wanderer"}`;
-    const healthLine = `${data.hp || 0}/${data.max_hp || 0}  ${data.hp_bar || ""}`.trim();
+    const healthLine = String(data.hp_bar || `${data.hp || 0}/${data.max_hp || 0}`).trim();
     const equippedItems =
       Array.isArray(data.equipped_details) && data.equipped_details.length
         ? data.equipped_details
@@ -321,7 +319,7 @@
     for (const line of lines) {
       const node = document.createElement("p");
       node.className = "summary-line";
-      node.textContent = line;
+      node.innerHTML = ansiToHtml(line);
       container.appendChild(node);
     }
     emptyNode.hidden = true;
@@ -352,26 +350,6 @@
 
     artPanel.textContent = ascii || "(no art available)";
     artPanel.scrollTop = 0;
-  }
-
-  function renderCompassMap(mapText) {
-    if (!mapPanel || !mapEmpty) {
-      return;
-    }
-
-    const text = String(mapText || "").replaceAll("\r", "").trim();
-    if (!text) {
-      mapPanel.hidden = true;
-      mapPanel.textContent = "";
-      mapEmpty.hidden = false;
-      mapEmpty.textContent = "Map unavailable.";
-      return;
-    }
-
-    mapPanel.hidden = false;
-    mapPanel.textContent = text;
-    mapPanel.scrollTop = 0;
-    mapEmpty.hidden = true;
   }
 
   function renderInventoryPanel(items) {
@@ -434,14 +412,14 @@
       title.className = "summary-subtitle";
       const locationName = String(row.location || "Unknown");
       const total = Number(row.total || 0);
-      title.textContent = `${locationName} (${Number.isFinite(total) ? total : 0})`;
+      title.innerHTML = ansiToHtml(`${locationName} (${Number.isFinite(total) ? total : 0})`);
       section.appendChild(title);
 
       const kills = Array.isArray(row.kills) ? row.kills : [];
       if (!kills.length) {
         const empty = document.createElement("p");
         empty.className = "summary-line";
-        empty.textContent = "No kills in this location.";
+        empty.innerHTML = ansiToHtml("No kills in this location.");
         section.appendChild(empty);
       } else {
         const list = document.createElement("ul");
@@ -452,7 +430,13 @@
             continue;
           }
           const item = document.createElement("li");
-          item.textContent = `${String(kill.enemy || "Unknown")} x${Number(kill.count || 0)}`;
+          const enemyText = String(kill.enemy || "Unknown");
+          const countNum = Number(kill.count || 0);
+          if (Number.isFinite(countNum) && countNum > 0) {
+            item.innerHTML = ansiToHtml(`${enemyText} x${countNum}`);
+          } else {
+            item.innerHTML = ansiToHtml(enemyText);
+          }
           list.appendChild(item);
         }
         section.appendChild(list);
@@ -650,7 +634,6 @@
     }
     renderStatusPanel(payload.status_panel);
     renderArt(payload);
-    renderCompassMap(payload.compass_map);
     renderInventoryPanel(payload.inventory_panel);
     renderLocationPanel(payload.location_panel);
     renderKillPanel(payload.kill_panel);
@@ -943,6 +926,31 @@ _QUEST_STEPS = {
     "rescue_elle": "Free and cleanse Elle to complete the story.",
     "homecoming": "Return to the Old Shack and close remaining threads.",
 }
+
+_ANSI_BLUE = "\x1b[38;5;39m"
+_ANSI_YELLOW = "\x1b[93m"
+_ANSI_ORANGE = "\x1b[38;5;208m"
+_ANSI_RED = "\x1b[91m"
+_ANSI_GREEN = "\x1b[92m"
+_ANSI_PURPLE = "\x1b[95m"
+_ANSI_PINK = "\x1b[38;5;213m"
+_ANSI_RESET = "\x1b[0m"
+
+_ANSI_BY_CLASS = {
+    "ansi-blue": _ANSI_BLUE,
+    "ansi-yellow": _ANSI_YELLOW,
+    "ansi-orange": _ANSI_ORANGE,
+    "ansi-red": _ANSI_RED,
+    "ansi-green": _ANSI_GREEN,
+    "ansi-purple": _ANSI_PURPLE,
+    "ansi-pink": _ANSI_PINK,
+}
+
+def _paint(text: str, color_code: str = "") -> str:
+    value = str(text or "")
+    if not color_code:
+        return value
+    return f"{color_code}{value}{_ANSI_RESET}"
 _NPC_COLOR_BY_NAME = {
     npc.get("name", "").strip().lower(): "ansi-blue"
     for npc in NPCS.values()
@@ -968,6 +976,19 @@ for _item_id, _item in ITEMS.items():
         continue
     _is_rare = _item_id in _IMPORTANT_OR_RARE_ITEM_IDS or _item.get("type") in {"quest", "key", "boon"}
     _ITEM_COLOR_BY_NAME[_item_name] = "ansi-purple" if _is_rare else "ansi-green"
+
+def _ansi_for_css_class(css_class: str) -> str:
+    return _ANSI_BY_CLASS.get(str(css_class or "").strip(), "")
+
+def _color_item_name(item_id: str, item_name: str) -> str:
+    item = ITEMS.get(item_id, {})
+    is_rare = item_id in _IMPORTANT_OR_RARE_ITEM_IDS or item.get("type") in {"quest", "key", "boon"}
+    color = _ANSI_PURPLE if is_rare else _ANSI_GREEN
+    return _paint(item_name, color)
+
+def _color_enemy_name(enemy_name: str) -> str:
+    css_class = _ENEMY_COLOR_BY_NAME.get(str(enemy_name or "").strip().lower(), "")
+    return _paint(enemy_name, _ansi_for_css_class(css_class))
 
 def _normalize_token(text: str) -> str:
     return "".join(ch for ch in str(text or "").strip().lower() if ch.isalnum() or ch.isspace())
@@ -1144,6 +1165,7 @@ def _status_panel_payload() -> dict:
 
         item = ITEMS.get(item_id, {})
         item_name = item.get("name", item_id)
+        colored_item_name = _color_item_name(item_id, item_name)
         attack_bonus = int(item.get("attack_bonus", 0))
         defense_bonus = int(item.get("defense_bonus", 0))
         max_hp_bonus = int(item.get("max_hp_bonus", 0))
@@ -1153,18 +1175,18 @@ def _status_panel_payload() -> dict:
 
         parts = []
         if attack_bonus:
-            parts.append(f"+{attack_bonus} ATK")
+            parts.append(f"+{attack_bonus} {_paint('ATK', _ANSI_PINK)}")
         if defense_bonus:
-            parts.append(f"+{defense_bonus} DEF")
+            parts.append(f"+{defense_bonus} {_paint('DEF', _ANSI_PINK)}")
         if max_hp_bonus:
-            parts.append(f"+{max_hp_bonus} HP")
+            parts.append(f"+{max_hp_bonus} {_paint('HEALTH', _ANSI_PINK)}")
         detail = ", ".join(parts) if parts else "no stat bonus"
-        equipped_details.append(f"{slot.title()}: {item_name} ({detail})")
+        equipped_details.append(f"{slot.title()}: {colored_item_name} ({detail})")
 
     overall_stats = [
-        f"ATK: {base_attack + gear_attack} (Base {base_attack} + Gear {gear_attack})",
-        f"DEF: {base_defense + gear_defense} (Base {base_defense} + Gear {gear_defense})",
-        f"Max HP: {base_max_hp + gear_max_hp} (Base {base_max_hp} + Gear {gear_max_hp})",
+        f"{_paint('ATK', _ANSI_PINK)}: {base_attack + gear_attack} (Base {base_attack} + Gear {gear_attack})",
+        f"{_paint('DEF', _ANSI_PINK)}: {base_defense + gear_defense} (Base {base_defense} + Gear {gear_defense})",
+        f"{_paint('HEALTH', _ANSI_PINK)}: {base_max_hp + gear_max_hp} (Base {base_max_hp} + Gear {gear_max_hp})",
     ]
 
     return {
@@ -1179,11 +1201,17 @@ def _status_panel_payload() -> dict:
 
 def _inventory_panel_payload() -> list[str]:
     lines = []
-    for item_id, qty in sorted(_state.player.inventory.items()):
+    inventory_items = sorted(_state.player.inventory.items())
+    max_rows = 14
+    for item_id, qty in inventory_items[:max_rows]:
         item = ITEMS.get(item_id, {})
         item_name = item.get("name", item_id)
+        colored_item_name = _color_item_name(item_id, item_name)
         item_type = item.get("type", "unknown")
-        lines.append(f"{item_name} x{qty} ({item_type})")
+        lines.append(f"{colored_item_name} x{qty} ({item_type})")
+    remaining = len(inventory_items) - min(len(inventory_items), max_rows)
+    if remaining > 0:
+        lines.append(f"... +{remaining} more item stacks")
     return lines
 
 def _location_panel_payload() -> dict:
@@ -1193,7 +1221,7 @@ def _location_panel_payload() -> dict:
         "name": location.get("name", _state.current_location_id),
         "area": location.get("area", "Unknown"),
         "exits": sorted(location.get("exits", {}).keys()),
-        "quest_title": objective.get("title", ""),
+        "quest_title": _paint(objective.get("title", ""), _ANSI_PURPLE),
     }
 
 def _kill_panel_payload() -> list[dict]:
@@ -1212,21 +1240,21 @@ def _kill_panel_payload() -> list[dict]:
         location_name = LOCATIONS.get(location_id, {}).get("name", str(location_id))
         rows = []
         total = 0
-        for enemy_name, count in sorted(kills.items(), key=lambda item: (-int(item[1]), str(item[0]))):
+        sorted_kills = sorted(kills.items(), key=lambda item: (-int(item[1]), str(item[0])))
+        max_enemy_rows = 6
+        for enemy_name, count in sorted_kills[:max_enemy_rows]:
             safe_count = max(0, int(count))
             total += safe_count
-            rows.append({"enemy": str(enemy_name), "count": safe_count})
+            colored_enemy_name = _color_enemy_name(str(enemy_name))
+            rows.append({"enemy": colored_enemy_name, "count": safe_count})
+        remaining_enemy_types = len(sorted_kills) - min(len(sorted_kills), max_enemy_rows)
+        if remaining_enemy_types > 0:
+            rows.append({"enemy": f"... +{remaining_enemy_types} more enemy types", "count": 0})
+
+        if total == 0:
+            total = sum(max(0, int(value)) for value in kills.values())
         result.append({"location": location_name, "total": total, "kills": rows})
     return result
-
-def _compass_map_ascii() -> str:
-    current_name = LOCATIONS.get(_state.current_location_id, {}).get("name", _state.current_location_id)
-    recommended_target_id, recommended_direction = _engine._recommended_map_step(_state)
-    return ui.format_world_map(
-        current_name,
-        _engine._map_direction_labels(_state, recommended_direction),
-        _engine._map_route_lines(_state, recommended_target_id),
-    )
 
 def _encode_rng_state() -> str:
     state_bytes = pickle.dumps(_state.rng.getstate())
@@ -1680,7 +1708,6 @@ def _payload(screen: str) -> str:
             "game_over": bool(_state.game_over),
             "in_combat": bool(_state.active_encounter),
             "status_panel": _status_panel_payload(),
-            "compass_map": _compass_map_ascii(),
             "art_title": _current_art_title,
             "art_ascii": _current_art_ascii,
             "art_image": _current_art_image,
