@@ -10,6 +10,9 @@
   const artTitle = document.getElementById("art-title");
   const artPanel = document.getElementById("art-panel");
   const artImage = document.getElementById("art-image");
+  const middlePane = document.querySelector(".middle-pane");
+  const actionsShell = document.querySelector(".actions-shell");
+  const actionsHead = document.querySelector(".actions-head");
   const actionsTitle = document.getElementById("actions-title");
   const actionsList = document.getElementById("actions-list");
   const actionsEmpty = document.getElementById("actions-empty");
@@ -29,6 +32,7 @@
     "content/quests.py",
     "content/world.py",
     "content/art/ascii-art.txt",
+    "content/art/frog.txt",
     "game/__init__.py",
     "game/commands.py",
     "game/engine.py",
@@ -45,7 +49,9 @@
     "93": "ansi-yellow",
     "38;5;208": "ansi-orange",
     "91": "ansi-red",
-    "92": "ansi-green",
+    "38;5;82": "ansi-health-green",
+    "38;5;120": "ansi-item-green",
+    "92": "ansi-item-green",
     "95": "ansi-purple",
     "38;5;213": "ansi-pink",
   };
@@ -210,6 +216,29 @@
     if (allowCommandInput) {
       input.focus();
     }
+  }
+
+  function syncActionsHeight() {
+    if (!actionsList || !actionsShell || !middlePane) {
+      return;
+    }
+    if (window.innerWidth <= 1100) {
+      actionsShell.style.removeProperty("height");
+      actionsList.style.removeProperty("height");
+      actionsList.style.removeProperty("max-height");
+      return;
+    }
+
+    const middleHeight = Math.max(0, Math.floor(middlePane.getBoundingClientRect().height));
+    if (!middleHeight) {
+      return;
+    }
+
+    const headerHeight = actionsHead ? Math.floor(actionsHead.getBoundingClientRect().height) : 0;
+    const bodyHeight = Math.max(220, middleHeight - headerHeight - 2);
+    actionsShell.style.height = `${middleHeight}px`;
+    actionsList.style.height = `${bodyHeight}px`;
+    actionsList.style.maxHeight = `${bodyHeight}px`;
   }
 
   function cleanActionsHeading(heading) {
@@ -546,7 +575,7 @@
     const rows = [];
     for (const raw of Array.isArray(actions) ? actions : []) {
       const command = String(raw?.command || "").trim();
-      if (!command || command === "map") {
+      if (!command) {
         continue;
       }
       const description = String(raw?.description || "").trim() || "No description.";
@@ -639,6 +668,7 @@
     renderKillPanel(payload.kill_panel);
     renderActions(payload.actions_heading, payload.actions, payload.hints, Boolean(payload.game_over));
     setCombatTint(payload.in_combat);
+    window.requestAnimationFrame(syncActionsHeight);
   }
 
   function parsePayload(payload) {
@@ -761,20 +791,51 @@ def _load_ascii_art(path: str) -> str:
     if not lines:
         return ""
 
-    # Downsample dense ASCII art so key features (like the face) fit in the art panel.
-    row_step = 5
-    col_step = 5
-    sampled_lines: list[str] = []
-    for row_index in range(0, len(lines), row_step):
-        row = lines[row_index]
-        sampled = "".join(row[col_index] for col_index in range(0, len(row), col_step))
-        sampled_lines.append(sampled.rstrip())
+    non_empty = [line for line in lines if line.strip()]
+    if non_empty:
+        left_pad = min(len(line) - len(line.lstrip(" ")) for line in non_empty)
+        if left_pad > 0:
+            lines = [line[left_pad:] if len(line) >= left_pad else "" for line in lines]
+    lines = [line.rstrip() for line in lines]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
 
-    while sampled_lines and not sampled_lines[-1].strip():
-        sampled_lines.pop()
-    return "\n".join(sampled_lines)
+    if not lines:
+        return ""
+
+    max_height = 34
+    max_width = 72
+
+    while len(lines) > max_height:
+        lines = [line for idx, line in enumerate(lines) if idx % 2 == 0]
+
+    def _widest(rows: list[str]) -> int:
+        return max((len(row) for row in rows), default=0)
+
+    while _widest(lines) > max_width:
+        lines = [line[::2].rstrip() for line in lines]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if not lines:
+            return ""
+
+    centered_lines: list[str] = []
+    for line in lines:
+        content = line.rstrip()
+        if not content:
+            centered_lines.append("")
+            continue
+        pad = max(0, (max_width - len(content)) // 2)
+        centered_lines.append((" " * pad) + content)
+
+    return "\n".join(centered_lines)
 
 _OLD_SHACK_WISE_OLD_MAN_ASCII = _load_ascii_art("content/art/ascii-art.txt")
+_GIANT_FROG_ASCII = _load_ascii_art("content/art/frog.txt")
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
     "old_shack": [
@@ -931,7 +992,8 @@ _ANSI_BLUE = "\x1b[38;5;39m"
 _ANSI_YELLOW = "\x1b[93m"
 _ANSI_ORANGE = "\x1b[38;5;208m"
 _ANSI_RED = "\x1b[91m"
-_ANSI_GREEN = "\x1b[92m"
+_ANSI_HEALTH_GREEN = "\x1b[38;5;82m"
+_ANSI_ITEM_GREEN = "\x1b[38;5;120m"
 _ANSI_PURPLE = "\x1b[95m"
 _ANSI_PINK = "\x1b[38;5;213m"
 _ANSI_RESET = "\x1b[0m"
@@ -941,7 +1003,9 @@ _ANSI_BY_CLASS = {
     "ansi-yellow": _ANSI_YELLOW,
     "ansi-orange": _ANSI_ORANGE,
     "ansi-red": _ANSI_RED,
-    "ansi-green": _ANSI_GREEN,
+    "ansi-health-green": _ANSI_HEALTH_GREEN,
+    "ansi-item-green": _ANSI_ITEM_GREEN,
+    "ansi-green": _ANSI_ITEM_GREEN,
     "ansi-purple": _ANSI_PURPLE,
     "ansi-pink": _ANSI_PINK,
 }
@@ -975,7 +1039,7 @@ for _item_id, _item in ITEMS.items():
     if not _item_name:
         continue
     _is_rare = _item_id in _IMPORTANT_OR_RARE_ITEM_IDS or _item.get("type") in {"quest", "key", "boon"}
-    _ITEM_COLOR_BY_NAME[_item_name] = "ansi-purple" if _is_rare else "ansi-green"
+    _ITEM_COLOR_BY_NAME[_item_name] = "ansi-purple" if _is_rare else "ansi-item-green"
 
 def _ansi_for_css_class(css_class: str) -> str:
     return _ANSI_BY_CLASS.get(str(css_class or "").strip(), "")
@@ -983,7 +1047,7 @@ def _ansi_for_css_class(css_class: str) -> str:
 def _color_item_name(item_id: str, item_name: str) -> str:
     item = ITEMS.get(item_id, {})
     is_rare = item_id in _IMPORTANT_OR_RARE_ITEM_IDS or item.get("type") in {"quest", "key", "boon"}
-    color = _ANSI_PURPLE if is_rare else _ANSI_GREEN
+    color = _ANSI_PURPLE if is_rare else _ANSI_ITEM_GREEN
     return _paint(item_name, color)
 
 def _color_enemy_name(enemy_name: str) -> str:
@@ -1119,6 +1183,8 @@ def _npc_art(npc_id: str) -> tuple[str, str]:
 def _enemy_art(enemy_id: str) -> tuple[str, str]:
     enemy = ENEMIES.get(enemy_id, {})
     title = enemy.get("name", enemy_id)
+    if enemy_id == "giant_frog" and _GIANT_FROG_ASCII:
+        return title, _GIANT_FROG_ASCII
     if enemy.get("category") == "boss":
         glyph = _BOSS_GLYPHS
     else:
@@ -1462,7 +1528,7 @@ def _argument_color(verb: str, argument: str) -> str:
     if verb in {"use", "equip", "read"}:
         if arg in {"all", "a,b,c"}:
             return ""
-        return _ITEM_COLOR_BY_NAME.get(arg, "ansi-green")
+        return _ITEM_COLOR_BY_NAME.get(arg, "ansi-item-green")
     if verb == "fight" and arg:
         return _ENEMY_COLOR_BY_NAME.get(arg, "ansi-yellow")
 
@@ -1658,8 +1724,6 @@ def _action_payload() -> tuple[str, list[dict], list[dict[str, str]]]:
             continue
         command, description = line.split(":", 1)
         action_command = command.strip()
-        if action_command == "map":
-            continue
         command_parts = action_command.split(maxsplit=1)
         verb = command_parts[0].strip() if command_parts else action_command
         argument = command_parts[1].strip() if len(command_parts) > 1 else ""
@@ -1935,6 +1999,10 @@ def web_load_state(snapshot: str) -> str:
       busy = false;
       setInputEnabled(true);
     }
+  });
+
+  window.addEventListener("resize", () => {
+    window.requestAnimationFrame(syncActionsHeight);
   });
 
   loadHintsPreference();

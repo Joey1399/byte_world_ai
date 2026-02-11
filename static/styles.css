@@ -4,7 +4,10 @@
   --panel-border: #2a3448;
   --text: #d9e2f1;
   --muted: #91a0bb;
-  --accent: #5de4a1;
+  --command-green: #58dd96;
+  --item-green: #6fbe79;
+  --health-green: #45f06c;
+  --accent: var(--command-green);
 }
 
 * {
@@ -77,6 +80,7 @@ body.combat-active .kills-shell {
   display: grid;
   gap: 12px;
   align-items: start;
+  min-height: 0;
 }
 
 .bottom-layout {
@@ -186,6 +190,7 @@ body.combat-active .kills-shell {
   white-space: pre;
   line-height: 0.42rem;
   font-size: 0.42rem;
+  text-align: center;
   color: #cbd6ed;
   letter-spacing: 0;
   background: rgba(8, 12, 20, 0.85);
@@ -231,10 +236,17 @@ body.combat-active .kills-shell {
   min-width: 86px;
 }
 
+.actions-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .actions-list {
   margin: 0;
-  min-height: 62vh;
+  min-height: 220px;
   max-height: 72vh;
+  flex: 1 1 auto;
   overflow: auto;
   padding: 8px 14px 10px;
 }
@@ -293,7 +305,7 @@ body.combat-active .kills-shell {
 }
 
 .action-verb {
-  color: var(--accent);
+  color: var(--command-green);
   font-weight: 700;
 }
 
@@ -433,8 +445,16 @@ input:disabled {
   color: #ff7b7b;
 }
 
+.ansi-health-green {
+  color: var(--health-green);
+}
+
+.ansi-item-green {
+  color: var(--item-green);
+}
+
 .ansi-green {
-  color: #74f589;
+  color: var(--item-green);
 }
 
 .ansi-purple {
@@ -452,7 +472,7 @@ input:disabled {
 
   .right-pane {
     grid-column: 1 / -1;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .terminal {

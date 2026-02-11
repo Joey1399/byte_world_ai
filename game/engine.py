@@ -324,6 +324,15 @@ class Engine:
 
         return lines
 
+    def _render_world_map(self, state: GameState) -> str:
+        current_name = LOCATIONS.get(state.current_location_id, {}).get("name", state.current_location_id)
+        recommended_target_id, recommended_direction = self._recommended_map_step(state)
+        return ui.format_world_map(
+            current_name,
+            self._map_direction_labels(state, recommended_direction),
+            self._map_route_lines(state, recommended_target_id),
+        )
+
     def _exploration_actions(self, state: GameState) -> dict[str, str]:
         location = LOCATIONS[state.current_location_id]
         actions: dict[str, str] = {}
@@ -348,6 +357,7 @@ class Engine:
         self._add_action(actions, "sense", "Get environmental hints for this area.")
         self._add_action(actions, "status", "View HP, combat stats, level, and equipped gear.")
         self._add_action(actions, "quest", "Show your current objective and hint.")
+        self._add_action(actions, "map", "Show the directional world map and route hints from your current location.")
         if location.get("encounters", []):
             self._add_action(
                 actions,
@@ -473,6 +483,7 @@ class Engine:
                 "run",
                 f"Attempt to escape (about {int(run_chance * 100)}% success chance).",
             )
+            self._add_action(actions, "map", "Show the directional world map and route hints.")
 
             for skill_name in sorted(state.player.skills):
                 cooldown = state.player.cooldowns.get(skill_name, 0)
@@ -591,6 +602,7 @@ class Engine:
                 "skill",
                 "run",
                 "quest",
+                "map",
                 "joke",
                 "bribe",
                 "quit",
@@ -615,6 +627,9 @@ class Engine:
 
         if command == "sense":
             return exploration.sense(state)
+
+        if command == "map":
+            return [self._render_world_map(state)]
 
         if command == "hunt":
             return exploration.hunt(state)

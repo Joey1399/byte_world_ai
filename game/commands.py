@@ -22,6 +22,7 @@ ALIASES = {
     "grind": "hunt",
     "i": "inventory",
     "inv": "inventory",
+    "m": "map",
     "q": "quit",
     "exit": "quit",
     "attack": "fight",

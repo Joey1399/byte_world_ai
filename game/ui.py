@@ -20,7 +20,8 @@ ANSI_BLUE = "\033[38;5;39m"
 ANSI_YELLOW = "\033[93m"
 ANSI_ORANGE = "\033[38;5;208m"
 ANSI_RED = "\033[91m"
-ANSI_GREEN = "\033[92m"
+ANSI_HEALTH_GREEN = "\033[38;5;82m"
+ANSI_ITEM_GREEN = "\033[38;5;120m"
 ANSI_PURPLE = "\033[95m"
 ANSI_PINK = "\033[38;5;213m"
 
@@ -122,7 +123,7 @@ _COLOR_PATTERNS: list[tuple[re.Pattern[str] | None, str]] = [
     (_compile_name_pattern(_NPC_NAMES), ANSI_BLUE),
     (_compile_name_pattern(_SKILL_TERMS), ANSI_PINK),
     (_compile_name_pattern(_PURPLE_ITEM_NAMES), ANSI_PURPLE),
-    (_compile_name_pattern(_GREEN_ITEM_NAMES), ANSI_GREEN),
+    (_compile_name_pattern(_GREEN_ITEM_NAMES), ANSI_ITEM_GREEN),
 ]
 
 
@@ -152,7 +153,7 @@ def health_bar(current_hp: int, max_hp: int, width: int = 24) -> str:
     empty_text = "-" * empty
 
     if _COLOR_ENABLED:
-        fill_text = _paint(fill_text, ANSI_GREEN) if fill_text else ""
+        fill_text = _paint(fill_text, ANSI_HEALTH_GREEN) if fill_text else ""
         empty_text = _paint(empty_text, ANSI_RED) if empty_text else ""
 
     return f"[{fill_text}{empty_text}] {current_hp}/{max_hp}"
@@ -232,6 +233,7 @@ def help_text() -> str:
         ("info", "quest", "Show current quest objective and hint."),
         ("info", "look", "Describe your current location and exits."),
         ("info", "sense", "Show subtle hints about this area."),
+        ("info", "map", "Show a directional map with your location and route hints."),
         ("explore", "hunt", "Force a creature encounter in areas that have roaming enemies."),
         ("explore", "move <dir>", "Travel north/south/east/west/up/down (n/s/e/w/u/d aliases)."),
         ("social", "talk <npc>", "Talk to a visible NPC in your current location."),
@@ -286,7 +288,7 @@ def help_text() -> str:
                 f"{_paint('Creature', ANSI_YELLOW)} = fightable",
                 f"{_paint('Boss', ANSI_ORANGE)} = boss fight",
                 f"{_paint('End-boss', ANSI_RED)} = Makor / Witch",
-                f"{_paint('Item', ANSI_GREEN)} = item/equipment",
+                f"{_paint('Item', ANSI_ITEM_GREEN)} = item/equipment",
                 f"{_paint('Rare/Quest', ANSI_PURPLE)} = rare or important reward",
                 f"{_paint('Skill', ANSI_PINK)} = train/combat skill terms",
             ]
