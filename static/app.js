@@ -624,7 +624,22 @@ def _load_ascii_art(path: str) -> str:
         lines.pop(0)
     while lines and not lines[-1].strip():
         lines.pop()
-    return "\n".join(lines)
+
+    if not lines:
+        return ""
+
+    # Downsample dense ASCII art so key features (like the face) fit in the art panel.
+    row_step = 5
+    col_step = 5
+    sampled_lines: list[str] = []
+    for row_index in range(0, len(lines), row_step):
+        row = lines[row_index]
+        sampled = "".join(row[col_index] for col_index in range(0, len(row), col_step))
+        sampled_lines.append(sampled.rstrip())
+
+    while sampled_lines and not sampled_lines[-1].strip():
+        sampled_lines.pop()
+    return "\n".join(sampled_lines)
 
 _OLD_SHACK_WISE_OLD_MAN_ASCII = _load_ascii_art("content/art/ascii-art.txt")
 
