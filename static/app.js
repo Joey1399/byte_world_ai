@@ -360,24 +360,34 @@
     }
     const title = String(payload?.art_title || "Scene Art").trim() || "Scene Art";
     const ascii = String(payload?.art_ascii || "").replaceAll("\r", "");
+    const asciiFallback = ascii || "(no art available)";
     const imageSrc = String(payload?.art_image || "").trim();
     artTitle.textContent = title;
 
     if (artImage) {
       if (imageSrc) {
+        artImage.onerror = () => {
+          artImage.hidden = true;
+          artImage.removeAttribute("src");
+          artImage.alt = "";
+          artPanel.hidden = false;
+          artPanel.textContent = asciiFallback;
+          artPanel.scrollTop = 0;
+        };
         artImage.src = imageSrc;
         artImage.alt = title;
         artImage.hidden = false;
         artPanel.hidden = true;
         return;
       }
+      artImage.onerror = null;
       artImage.hidden = true;
       artImage.removeAttribute("src");
       artImage.alt = "";
       artPanel.hidden = false;
     }
 
-    artPanel.textContent = ascii || "(no art available)";
+    artPanel.textContent = asciiFallback;
     artPanel.scrollTop = 0;
   }
 
@@ -758,6 +768,7 @@
     const bootstrapCode = String.raw`
 import base64
 import json
+import math
 import os
 import pickle
 from pathlib import Path
@@ -778,11 +789,11 @@ _current_art_title = "Scene Art"
 _current_art_ascii = ""
 _current_art_image = ""
 
-def _load_ascii_art(path: str, fallback: str = "") -> str:
+def _load_ascii_art(path: str, fallback: str = "", max_width: int = 72, max_height: int = 34) -> str:
     try:
         raw = Path(path).read_text(encoding="utf-8")
     except Exception:
-        return ""
+        return str(fallback or "").strip("\n")
 
     lines = [line.rstrip("\r") for line in raw.splitlines()]
     while lines and not lines[0].strip():
@@ -791,100 +802,46 @@ def _load_ascii_art(path: str, fallback: str = "") -> str:
         lines.pop()
 
     if not lines:
-        return ""
+        return str(fallback or "").strip("\n")
 
-    content_rows = [index for index, line in enumerate(lines) if line.strip()]
-    if not content_rows:
-        return ""
-    top = content_rows[0]
-    bottom = content_rows[-1]
-    lines = lines[top : bottom + 1]
+    non_empty = [line for line in lines if line.strip()]
+    if not non_empty:
+        return str(fallback or "").strip("\n")
 
-    left = min((len(line) - len(line.lstrip(" ")) for line in lines if line.strip()), default=0)
-    right = max((len(line.rstrip()) for line in lines), default=0)
+    left = min(len(line) - len(line.lstrip(" ")) for line in non_empty)
+    right = max(len(line.rstrip()) for line in non_empty)
     if right <= left:
-        return ""
+        return str(fallback or "").strip("\n")
+
     cropped = [line[left:right].rstrip() for line in lines]
+    while cropped and not cropped[0].strip():
+        cropped.pop(0)
     while cropped and not cropped[-1].strip():
         cropped.pop()
     if not cropped:
-        return ""
-
-    source_height = len(cropped)
-    source_width = max((len(line) for line in cropped), default=0)
-    if source_height <= 0 or source_width <= 0:
-        return ""
-    source_grid = [line.ljust(source_width) for line in cropped]
-
-    target_max_width = 72
-    target_max_height = 34
-    scale = max(source_width / target_max_width, source_height / target_max_height, 1.0)
-    output_width = max(1, int(round(source_width / scale)))
-    output_height = max(1, int(round(source_height / scale)))
-
-    density_ramp = " .:-=+*#%@"
-    char_density = {
-        " ": 0.0,
-        ".": 0.16,
-        ":": 0.28,
-        "-": 0.38,
-        "=": 0.5,
-        "+": 0.62,
-        "*": 0.74,
-        "#": 0.84,
-        "%": 0.92,
-        "@": 1.0,
-    }
-
-    def _density(char: str) -> float:
-        if char in char_density:
-            return char_density[char]
-        return 0.66 if char.strip() else 0.0
-
-    output_lines: list[str] = []
-    for out_y in range(output_height):
-        y0 = int((out_y * source_height) / output_height)
-        y1 = int(((out_y + 1) * source_height) / output_height)
-        if y1 <= y0:
-            y1 = min(source_height, y0 + 1)
-        line_chars: list[str] = []
-
-        for out_x in range(output_width):
-            x0 = int((out_x * source_width) / output_width)
-            x1 = int(((out_x + 1) * source_width) / output_width)
-            if x1 <= x0:
-                x1 = min(source_width, x0 + 1)
-
-            total = 0.0
-            count = 0
-            for src_y in range(y0, y1):
-                row = source_grid[src_y]
-                for src_x in range(x0, x1):
-                    total += _density(row[src_x])
-                    count += 1
-
-            average = (total / count) if count else 0.0
-            index = int(round(average * (len(density_ramp) - 1)))
-            index = max(0, min(len(density_ramp) - 1, index))
-            line_chars.append(density_ramp[index])
-
-        output_lines.append("".join(line_chars).rstrip())
-
-    while output_lines and not output_lines[0].strip():
-        output_lines.pop(0)
-    while output_lines and not output_lines[-1].strip():
-        output_lines.pop()
-    if not output_lines:
-        return ""
-
-    widest = max((len(line) for line in output_lines), default=0)
-    centered = [line.center(widest) for line in output_lines]
-    rendered = "\n".join(centered)
-    filled = sum(1 for line in centered for ch in line if ch != " ")
-    density = filled / max(1, widest * len(centered))
-    if widest < 30 or density > 0.55:
         return str(fallback or "").strip("\n")
-    return rendered
+
+    row_step = max(1, int(math.ceil(len(cropped) / max(1, max_height))))
+    row_sampled = [cropped[index] for index in range(0, len(cropped), row_step)]
+    if not row_sampled:
+        return str(fallback or "").strip("\n")
+
+    widest = max(len(line) for line in row_sampled)
+    col_step = max(1, int(math.ceil(widest / max(1, max_width))))
+    scaled = [
+        "".join(line[index] for index in range(0, len(line), col_step)).rstrip()
+        for line in row_sampled
+    ]
+
+    while scaled and not scaled[0].strip():
+        scaled.pop(0)
+    while scaled and not scaled[-1].strip():
+        scaled.pop()
+    if not scaled:
+        return str(fallback or "").strip("\n")
+
+    centered = [line.center(max_width) for line in scaled]
+    return "\n".join(centered)
 
 _WISE_OLD_MAN_FALLBACK = """
               ___
@@ -924,6 +881,7 @@ _GIANT_FROG_ASCII = _load_ascii_art(
     "content/art/frog.txt",
     fallback=_GIANT_FROG_FALLBACK,
 )
+_GIANT_FROG_IMAGE = "content/art/ascii-art-image.png"
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
     "old_shack": [
@@ -1323,16 +1281,16 @@ def _npc_art(npc_id: str) -> tuple[str, str]:
     glyph = _NPC_GLYPHS.get(npc_id, _NPC_GLYPHS.get("wise_old_man", []))
     return title, _boxed_art(title, glyph)
 
-def _enemy_art(enemy_id: str) -> tuple[str, str]:
+def _enemy_art(enemy_id: str) -> tuple[str, str, str]:
     enemy = ENEMIES.get(enemy_id, {})
     title = enemy.get("name", enemy_id)
-    if enemy_id == "giant_frog" and _GIANT_FROG_ASCII:
-        return title, _GIANT_FROG_ASCII
+    if enemy_id == "giant_frog":
+        return title, _GIANT_FROG_ASCII, _GIANT_FROG_IMAGE
     if enemy.get("category") == "boss":
         glyph = _BOSS_GLYPHS
     else:
         glyph = _CREATURE_GLYPHS
-    return title, _boxed_art(title, glyph)
+    return title, _boxed_art(title, glyph), ""
 
 def _set_art(title: str, ascii_text: str, image_url: str = "") -> None:
     global _current_art_title, _current_art_ascii, _current_art_image
@@ -1996,8 +1954,8 @@ def web_process(command: str) -> str:
     screen = _engine.process_raw_command(_state, command)
 
     if _state.active_encounter and previous_encounter_enemy is None:
-        enemy_title, enemy_ascii = _enemy_art(_state.active_encounter.enemy_id)
-        _set_art(enemy_title, enemy_ascii)
+        enemy_title, enemy_ascii, enemy_image = _enemy_art(_state.active_encounter.enemy_id)
+        _set_art(enemy_title, enemy_ascii, enemy_image)
     elif command_text.startswith("talk "):
         npc_id = _matching_npc_id_from_command(command_text)
         if npc_id:
@@ -2045,8 +2003,8 @@ def web_load_state(snapshot: str) -> str:
         return json.dumps({"ok": False, "error": "restore_failed"})
 
     if _state.active_encounter:
-        enemy_title, enemy_ascii = _enemy_art(_state.active_encounter.enemy_id)
-        _set_art(enemy_title, enemy_ascii)
+        enemy_title, enemy_ascii, enemy_image = _enemy_art(_state.active_encounter.enemy_id)
+        _set_art(enemy_title, enemy_ascii, enemy_image)
     else:
         location_title, location_ascii = _location_art(_state.current_location_id)
         _set_art(location_title, location_ascii)
