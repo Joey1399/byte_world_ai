@@ -170,6 +170,24 @@ body.combat-active .actions-shell {
   background: rgba(8, 12, 20, 0.85);
 }
 
+.art-panel[hidden] {
+  display: none;
+}
+
+.art-image {
+  display: block;
+  width: 100%;
+  min-height: 148px;
+  max-height: 188px;
+  object-fit: contain;
+  object-position: center;
+  background: rgba(8, 12, 20, 0.85);
+}
+
+.art-image[hidden] {
+  display: none;
+}
+
 .actions-title {
   margin: 0;
   padding: 12px 14px;
@@ -377,6 +395,11 @@ input:disabled {
     max-height: 170px;
     line-height: 0.46rem;
     font-size: 0.46rem;
+  }
+
+  .art-image {
+    min-height: 130px;
+    max-height: 170px;
   }
 
   .terminal {

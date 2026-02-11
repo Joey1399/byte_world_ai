@@ -9,6 +9,7 @@
   const statusEmpty = document.getElementById("status-empty");
   const artTitle = document.getElementById("art-title");
   const artPanel = document.getElementById("art-panel");
+  const artImage = document.getElementById("art-image");
   const actionsTitle = document.getElementById("actions-title");
   const actionsList = document.getElementById("actions-list");
   const actionsEmpty = document.getElementById("actions-empty");
@@ -298,7 +299,23 @@
     }
     const title = String(payload?.art_title || "Scene Art").trim() || "Scene Art";
     const ascii = String(payload?.art_ascii || "").replaceAll("\r", "");
+    const imageSrc = String(payload?.art_image || "").trim();
     artTitle.textContent = title;
+
+    if (artImage) {
+      if (imageSrc) {
+        artImage.src = imageSrc;
+        artImage.alt = title;
+        artImage.hidden = false;
+        artPanel.hidden = true;
+        return;
+      }
+      artImage.hidden = true;
+      artImage.removeAttribute("src");
+      artImage.alt = "";
+      artPanel.hidden = false;
+    }
+
     artPanel.textContent = ascii || "(no art available)";
     artPanel.scrollTop = 0;
   }
@@ -590,7 +607,7 @@ from systems import quest
 
 _engine = Engine()
 _state = create_initial_state()
-_current_art_title = "Ascii Art Test"
+_current_art_title = "Scene Art"
 _SAMPLE_ASCII_ART = """
                          XX###XX
                       XX###########XX
@@ -622,7 +639,9 @@ _SAMPLE_ASCII_ART = """
                   XXX###############XXX
                      XXXXXXXXXXXXXXX
 """.strip("\n")
-_current_art_ascii = _SAMPLE_ASCII_ART
+_current_art_ascii = ""
+_current_art_image = ""
+_WISE_OLD_MAN_SHACK_ART_IMAGE = "ascii-art.png"
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
     "old_shack": [
@@ -931,10 +950,11 @@ def _enemy_art(enemy_id: str) -> tuple[str, str]:
         glyph = _CREATURE_GLYPHS
     return title, _boxed_art(title, glyph)
 
-def _set_art(title: str, ascii_text: str) -> None:
-    global _current_art_title, _current_art_ascii
+def _set_art(title: str, ascii_text: str, image_url: str = "") -> None:
+    global _current_art_title, _current_art_ascii, _current_art_image
     _current_art_title = str(title or "Scene Art")
     _current_art_ascii = str(ascii_text or "").strip("\n")
+    _current_art_image = str(image_url or "").strip()
 
 def _matching_npc_id_from_command(command_text: str) -> str | None:
     if not command_text.startswith("talk "):
@@ -1409,6 +1429,7 @@ def _payload(screen: str) -> str:
             "status_panel": _status_panel_payload(),
             "art_title": _current_art_title,
             "art_ascii": _current_art_ascii,
+            "art_image": _current_art_image,
             "actions_heading": heading,
             "actions": actions,
             "hints": hints,
@@ -1416,7 +1437,7 @@ def _payload(screen: str) -> str:
     )
 
 def web_initial() -> str:
-    if not _current_art_ascii:
+    if not _current_art_ascii and not _current_art_image:
         location_title, location_ascii = _location_art(_state.current_location_id)
         _set_art(location_title, location_ascii)
     return _payload(_engine.initial_screen(_state))
@@ -1436,7 +1457,10 @@ def web_process(command: str) -> str:
         npc_id = _matching_npc_id_from_command(command_text)
         if npc_id:
             npc_title, npc_ascii = _npc_art(npc_id)
-            _set_art(npc_title, npc_ascii)
+            if npc_id == "wise_old_man" and _state.current_location_id == "old_shack":
+                _set_art(npc_title, npc_ascii, _WISE_OLD_MAN_SHACK_ART_IMAGE)
+            else:
+                _set_art(npc_title, npc_ascii)
     elif (
         command_text.startswith("move ")
         and _state.current_location_id != previous_location
@@ -1455,7 +1479,8 @@ def web_process(command: str) -> str:
 def web_reset() -> str:
     global _state
     _state = create_initial_state()
-    _set_art("Ascii Art Test", _SAMPLE_ASCII_ART)
+    location_title, location_ascii = _location_art(_state.current_location_id)
+    _set_art(location_title, location_ascii)
     return _payload(_engine.initial_screen(_state))
 
 def web_save_state() -> str:
