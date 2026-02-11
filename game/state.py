@@ -72,6 +72,7 @@ class GameState:
     flags: set[str] = field(default_factory=set)
     active_encounter: Optional[Encounter] = None
     discovered_locations: set[str] = field(default_factory=set)
+    kill_counts_by_location: Dict[str, Dict[str, int]] = field(default_factory=dict)
     turn_count: int = 0
     game_over: bool = False
     victory: bool = False
@@ -206,4 +207,3 @@ def find_item_id_by_query(player: Player, query: str) -> Optional[str]:
             return item_id
 
     return None
-

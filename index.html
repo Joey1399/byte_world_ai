@@ -4,28 +4,45 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>byte_world_ai Web CLI</title>
-  <link rel="stylesheet" href="static/styles.css?v=20260211i">
+  <link rel="stylesheet" href="static/styles.css?v=20260211j">
   <style>
-    /* Critical fallback to keep a three-pane layout even during stale asset cache windows. */
+    /* Critical fallback to keep the full dashboard layout during stale asset cache windows. */
     .terminal-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.05fr) minmax(260px, 1.15fr);
+      gap: 14px;
+    }
+
+    .top-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1.15fr) minmax(280px, 1.15fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .middle-pane,
+    .right-pane {
+      display: grid;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .bottom-layout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
       align-items: start;
     }
 
     .status-shell,
     .art-shell,
-    .actions-shell {
+    .map-shell,
+    .actions-shell,
+    .inventory-shell,
+    .location-shell,
+    .kills-shell {
       border: 1px solid #2a3448;
       border-radius: 12px;
       overflow: hidden;
-    }
-
-    .right-pane {
-      display: grid;
-      gap: 12px;
-      align-items: start;
     }
 
     .actions-head {
@@ -45,8 +62,21 @@
       margin-right: 12px;
     }
 
+    @media (max-width: 1100px) {
+      .top-layout {
+        grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      }
+
+      .right-pane {
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+    }
+
     @media (max-width: 760px) {
-      .terminal-layout {
+      .top-layout,
+      .right-pane,
+      .bottom-layout {
         grid-template-columns: 1fr;
       }
     }
@@ -60,54 +90,84 @@
     </header>
 
     <div class="terminal-layout">
-      <section class="left-pane">
-        <section class="terminal-shell" aria-live="polite">
-          <pre id="terminal" class="terminal"></pre>
+      <section class="top-layout">
+        <section class="left-pane">
+          <section class="terminal-shell" aria-live="polite">
+            <pre id="terminal" class="terminal"></pre>
+          </section>
+
+          <form id="command-form" class="command-row" autocomplete="off">
+            <label for="command-input" class="prompt">&gt;</label>
+            <input
+              id="command-input"
+              name="command"
+              type="text"
+              maxlength="200"
+              placeholder="Loading engine..."
+              disabled
+              autofocus
+            >
+            <button id="send-button" type="submit" disabled>Send</button>
+            <button id="reset-button" type="button" disabled>New Game</button>
+          </form>
+
+          <p id="status-line" class="status-line">Loading browser runtime...</p>
         </section>
 
-        <form id="command-form" class="command-row" autocomplete="off">
-          <label for="command-input" class="prompt">&gt;</label>
-          <input
-            id="command-input"
-            name="command"
-            type="text"
-            maxlength="200"
-            placeholder="Loading engine..."
-            disabled
-            autofocus
-          >
-          <button id="send-button" type="submit" disabled>Send</button>
-          <button id="reset-button" type="button" disabled>New Game</button>
-        </form>
+        <aside class="middle-pane">
+          <section class="art-shell" aria-live="polite">
+            <h2 id="art-title" class="art-title">Scene Art</h2>
+            <pre id="art-panel" class="art-panel"></pre>
+            <img id="art-image" class="art-image" alt="" hidden>
+          </section>
 
-        <p id="status-line" class="status-line">Loading browser runtime...</p>
+          <section class="status-shell" aria-live="polite">
+            <h2 class="status-title">Character</h2>
+            <div id="status-panel" class="status-panel"></div>
+            <p id="status-empty" class="status-empty">Loading status...</p>
+          </section>
+        </aside>
+
+        <aside class="right-pane">
+          <section class="map-shell" aria-live="polite">
+            <h2 class="map-title">Compass Map</h2>
+            <pre id="map-panel" class="map-panel"></pre>
+            <p id="map-empty" class="map-empty">Loading map...</p>
+          </section>
+
+          <section class="actions-shell" aria-live="polite">
+            <div class="actions-head">
+              <h2 id="actions-title" class="actions-title">Available actions</h2>
+              <button id="hints-toggle" class="hints-toggle" type="button">Hints: On</button>
+            </div>
+            <div id="actions-list" class="actions-list"></div>
+            <p id="actions-empty" class="actions-empty">Loading available actions...</p>
+          </section>
+        </aside>
       </section>
 
-      <aside class="status-shell" aria-live="polite">
-        <h2 class="status-title">Current Status</h2>
-        <div id="status-panel" class="status-panel"></div>
-        <p id="status-empty" class="status-empty">Loading status...</p>
-      </aside>
+      <section class="bottom-layout">
+        <aside class="inventory-shell" aria-live="polite">
+          <h2 class="summary-title">Inventory</h2>
+          <div id="inventory-panel" class="summary-panel"></div>
+          <p id="inventory-empty" class="summary-empty">Loading inventory...</p>
+        </aside>
 
-      <aside class="right-pane">
-        <section class="art-shell" aria-live="polite">
-          <h2 id="art-title" class="art-title">Scene Art</h2>
-          <pre id="art-panel" class="art-panel"></pre>
-          <img id="art-image" class="art-image" alt="" hidden>
-        </section>
+        <aside class="location-shell" aria-live="polite">
+          <h2 class="summary-title">Current Location</h2>
+          <div id="location-panel" class="summary-panel"></div>
+          <p id="location-empty" class="summary-empty">Loading location...</p>
+        </aside>
 
-        <section class="actions-shell" aria-live="polite">
-          <div class="actions-head">
-            <h2 id="actions-title" class="actions-title">Available actions</h2>
-            <button id="hints-toggle" class="hints-toggle" type="button">Hints: On</button>
-          </div>
-          <div id="actions-list" class="actions-list"></div>
-          <p id="actions-empty" class="actions-empty">Loading available actions...</p>
-        </section>
-      </aside>
+        <aside class="kills-shell" aria-live="polite">
+          <h2 class="summary-title">Kill Count By Location</h2>
+          <div id="kills-panel" class="summary-panel"></div>
+          <p id="kills-empty" class="summary-empty">No kills recorded yet.</p>
+        </aside>
+      </section>
     </div>
   </main>
 
-  <script src="static/app.js?v=20260211i"></script>
+  <script src="static/app.js?v=20260211j"></script>
 </body>
 </html>

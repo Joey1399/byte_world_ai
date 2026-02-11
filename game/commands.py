@@ -18,7 +18,6 @@ ALIASES = {
     "west": "move west",
     "up": "move up",
     "down": "move down",
-    "m": "map",
     "farm": "hunt",
     "grind": "hunt",
     "i": "inventory",

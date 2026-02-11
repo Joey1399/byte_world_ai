@@ -155,6 +155,11 @@ def _resolve_victory(state: GameState) -> List[str]:
     messages: List[str] = [f"You defeat {enemy['name']}."]
     messages.extend(enemy.get("post_dialogue", []))
 
+    location_id = str(state.current_location_id or "unknown")
+    enemy_name = str(enemy.get("name", enemy_id))
+    location_kills = state.kill_counts_by_location.setdefault(location_id, {})
+    location_kills[enemy_name] = int(location_kills.get(enemy_name, 0)) + 1
+
     boss_flag = BOSS_FLAGS.get(enemy_id)
     if boss_flag:
         state.flags.add(boss_flag)

@@ -10,10 +10,18 @@
   const artTitle = document.getElementById("art-title");
   const artPanel = document.getElementById("art-panel");
   const artImage = document.getElementById("art-image");
+  const mapPanel = document.getElementById("map-panel");
+  const mapEmpty = document.getElementById("map-empty");
   const actionsTitle = document.getElementById("actions-title");
   const actionsList = document.getElementById("actions-list");
   const actionsEmpty = document.getElementById("actions-empty");
   const hintsToggle = document.getElementById("hints-toggle");
+  const inventoryPanel = document.getElementById("inventory-panel");
+  const inventoryEmpty = document.getElementById("inventory-empty");
+  const locationPanel = document.getElementById("location-panel");
+  const locationEmpty = document.getElementById("location-empty");
+  const killsPanel = document.getElementById("kills-panel");
+  const killsEmpty = document.getElementById("kills-empty");
 
   const PYODIDE_JS_URL = "https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js";
   const SOURCE_FILES = [
@@ -275,23 +283,48 @@
       return;
     }
 
-    const levelLine = `Level ${data.level || 1}  ${data.player_name || "Wanderer"}${
-      data.quest_title ? `  |  Quest: ${data.quest_title}` : ""
-    }`;
+    const levelLine = `Level ${data.level || 1}  ${data.player_name || "Wanderer"}`;
     const healthLine = `${data.hp || 0}/${data.max_hp || 0}  ${data.hp_bar || ""}`.trim();
-    const skillItems = Array.isArray(data.skills) && data.skills.length ? data.skills : ["None learned yet"];
     const equippedItems =
-      Array.isArray(data.equipped) && data.equipped.length ? data.equipped : ["No equipment"];
-    const inventoryItems =
-      Array.isArray(data.inventory) && data.inventory.length ? data.inventory : ["Inventory is empty"];
+      Array.isArray(data.equipped_details) && data.equipped_details.length
+        ? data.equipped_details
+        : ["No equipment"];
+    const overallStats =
+      Array.isArray(data.overall_stats) && data.overall_stats.length ? data.overall_stats : ["No stats available"];
 
     statusPanel.appendChild(createStatusSection("Level", levelLine));
     statusPanel.appendChild(createStatusSection("Health", healthLine));
-    statusPanel.appendChild(createStatusSection("Skills", "", skillItems));
-    statusPanel.appendChild(createStatusSection("Equipped", "", equippedItems));
-    statusPanel.appendChild(createStatusSection("Inventory", "", inventoryItems));
+    statusPanel.appendChild(createStatusSection("Equipped Items", "", equippedItems));
+    statusPanel.appendChild(createStatusSection("Overall Stats", "", overallStats));
 
     statusEmpty.hidden = true;
+  }
+
+  function renderSimpleLines(container, emptyNode, rawLines, emptyText) {
+    if (!container || !emptyNode) {
+      return;
+    }
+    container.replaceChildren();
+    const lines = [];
+    for (const raw of Array.isArray(rawLines) ? rawLines : []) {
+      const line = String(raw || "").trim();
+      if (line) {
+        lines.push(line);
+      }
+    }
+    if (!lines.length) {
+      emptyNode.hidden = false;
+      emptyNode.textContent = emptyText;
+      return;
+    }
+
+    for (const line of lines) {
+      const node = document.createElement("p");
+      node.className = "summary-line";
+      node.textContent = line;
+      container.appendChild(node);
+    }
+    emptyNode.hidden = true;
   }
 
   function renderArt(payload) {
@@ -319,6 +352,119 @@
 
     artPanel.textContent = ascii || "(no art available)";
     artPanel.scrollTop = 0;
+  }
+
+  function renderCompassMap(mapText) {
+    if (!mapPanel || !mapEmpty) {
+      return;
+    }
+
+    const text = String(mapText || "").replaceAll("\r", "").trim();
+    if (!text) {
+      mapPanel.hidden = true;
+      mapPanel.textContent = "";
+      mapEmpty.hidden = false;
+      mapEmpty.textContent = "Map unavailable.";
+      return;
+    }
+
+    mapPanel.hidden = false;
+    mapPanel.textContent = text;
+    mapPanel.scrollTop = 0;
+    mapEmpty.hidden = true;
+  }
+
+  function renderInventoryPanel(items) {
+    renderSimpleLines(
+      inventoryPanel,
+      inventoryEmpty,
+      Array.isArray(items) ? items : [],
+      "Inventory is empty.",
+    );
+  }
+
+  function renderLocationPanel(locationData) {
+    const data = locationData && typeof locationData === "object" ? locationData : null;
+    if (!data) {
+      renderSimpleLines(locationPanel, locationEmpty, [], "Location unavailable.");
+      return;
+    }
+
+    const lines = [];
+    const name = String(data.name || "").trim();
+    const area = String(data.area || "").trim();
+    if (name) {
+      lines.push(area ? `${name} [${area}]` : name);
+    }
+
+    const exits = Array.isArray(data.exits)
+      ? data.exits.map((entry) => String(entry || "").trim()).filter(Boolean)
+      : [];
+    lines.push(`Exits: ${exits.length ? exits.join(", ") : "none"}`);
+
+    const questTitle = String(data.quest_title || "").trim();
+    if (questTitle) {
+      lines.push(`Quest: ${questTitle}`);
+    }
+
+    renderSimpleLines(locationPanel, locationEmpty, lines, "Location unavailable.");
+  }
+
+  function renderKillPanel(killRows) {
+    if (!killsPanel || !killsEmpty) {
+      return;
+    }
+    killsPanel.replaceChildren();
+    const rows = Array.isArray(killRows) ? killRows : [];
+    if (!rows.length) {
+      killsEmpty.hidden = false;
+      killsEmpty.textContent = "No kills recorded yet.";
+      return;
+    }
+
+    for (const rawRow of rows) {
+      const row = rawRow && typeof rawRow === "object" ? rawRow : null;
+      if (!row) {
+        continue;
+      }
+      const section = document.createElement("section");
+      section.className = "summary-subsection";
+
+      const title = document.createElement("h3");
+      title.className = "summary-subtitle";
+      const locationName = String(row.location || "Unknown");
+      const total = Number(row.total || 0);
+      title.textContent = `${locationName} (${Number.isFinite(total) ? total : 0})`;
+      section.appendChild(title);
+
+      const kills = Array.isArray(row.kills) ? row.kills : [];
+      if (!kills.length) {
+        const empty = document.createElement("p");
+        empty.className = "summary-line";
+        empty.textContent = "No kills in this location.";
+        section.appendChild(empty);
+      } else {
+        const list = document.createElement("ul");
+        list.className = "summary-list";
+        for (const rawKill of kills) {
+          const kill = rawKill && typeof rawKill === "object" ? rawKill : null;
+          if (!kill) {
+            continue;
+          }
+          const item = document.createElement("li");
+          item.textContent = `${String(kill.enemy || "Unknown")} x${Number(kill.count || 0)}`;
+          list.appendChild(item);
+        }
+        section.appendChild(list);
+      }
+      killsPanel.appendChild(section);
+    }
+
+    killsEmpty.hidden = killsPanel.children.length > 0;
+    if (!killsPanel.children.length) {
+      killsEmpty.hidden = false;
+      killsEmpty.textContent = "No kills recorded yet.";
+    }
   }
 
   function priorityScore(rawValue) {
@@ -416,7 +562,7 @@
     const rows = [];
     for (const raw of Array.isArray(actions) ? actions : []) {
       const command = String(raw?.command || "").trim();
-      if (!command) {
+      if (!command || command === "map") {
         continue;
       }
       const description = String(raw?.description || "").trim() || "No description.";
@@ -504,6 +650,10 @@
     }
     renderStatusPanel(payload.status_panel);
     renderArt(payload);
+    renderCompassMap(payload.compass_map);
+    renderInventoryPanel(payload.inventory_panel);
+    renderLocationPanel(payload.location_panel);
+    renderKillPanel(payload.kill_panel);
     renderActions(payload.actions_heading, payload.actions, payload.hints, Boolean(payload.game_over));
     setCombatTint(payload.in_combat);
   }
@@ -977,20 +1127,45 @@ def _matching_npc_id_from_command(command_text: str) -> str | None:
 
 def _status_panel_payload() -> dict:
     stats = get_effective_stats(_state.player)
-    objective = quest.get_current_objective(_state)
     hp_bar = ui.health_bar(_state.player.hp, stats["max_hp"])
 
-    equipped_lines = []
-    for slot, item_id in _state.player.equipment.items():
-        item_name = ITEMS.get(item_id, {}).get("name", item_id) if item_id else "none"
-        equipped_lines.append(f"{slot.title()}: {item_name}")
+    base_attack = int(_state.player.base_attack)
+    base_defense = int(_state.player.base_defense)
+    base_max_hp = int(_state.player.base_max_hp)
+    gear_attack = 0
+    gear_defense = 0
+    gear_max_hp = 0
+    equipped_details = []
 
-    inventory_lines = []
-    for item_id, qty in sorted(_state.player.inventory.items()):
+    for slot, item_id in _state.player.equipment.items():
+        if not item_id:
+            equipped_details.append(f"{slot.title()}: none")
+            continue
+
         item = ITEMS.get(item_id, {})
         item_name = item.get("name", item_id)
-        item_type = item.get("type", "unknown")
-        inventory_lines.append(f"{item_name} x{qty} ({item_type})")
+        attack_bonus = int(item.get("attack_bonus", 0))
+        defense_bonus = int(item.get("defense_bonus", 0))
+        max_hp_bonus = int(item.get("max_hp_bonus", 0))
+        gear_attack += attack_bonus
+        gear_defense += defense_bonus
+        gear_max_hp += max_hp_bonus
+
+        parts = []
+        if attack_bonus:
+            parts.append(f"+{attack_bonus} ATK")
+        if defense_bonus:
+            parts.append(f"+{defense_bonus} DEF")
+        if max_hp_bonus:
+            parts.append(f"+{max_hp_bonus} HP")
+        detail = ", ".join(parts) if parts else "no stat bonus"
+        equipped_details.append(f"{slot.title()}: {item_name} ({detail})")
+
+    overall_stats = [
+        f"ATK: {base_attack + gear_attack} (Base {base_attack} + Gear {gear_attack})",
+        f"DEF: {base_defense + gear_defense} (Base {base_defense} + Gear {gear_defense})",
+        f"Max HP: {base_max_hp + gear_max_hp} (Base {base_max_hp} + Gear {gear_max_hp})",
+    ]
 
     return {
         "player_name": _state.player.name,
@@ -998,11 +1173,60 @@ def _status_panel_payload() -> dict:
         "hp": int(_state.player.hp),
         "max_hp": int(stats["max_hp"]),
         "hp_bar": hp_bar,
-        "skills": sorted(_state.player.skills),
-        "equipped": equipped_lines,
-        "inventory": inventory_lines,
+        "equipped_details": equipped_details,
+        "overall_stats": overall_stats,
+    }
+
+def _inventory_panel_payload() -> list[str]:
+    lines = []
+    for item_id, qty in sorted(_state.player.inventory.items()):
+        item = ITEMS.get(item_id, {})
+        item_name = item.get("name", item_id)
+        item_type = item.get("type", "unknown")
+        lines.append(f"{item_name} x{qty} ({item_type})")
+    return lines
+
+def _location_panel_payload() -> dict:
+    location = LOCATIONS.get(_state.current_location_id, {})
+    objective = quest.get_current_objective(_state)
+    return {
+        "name": location.get("name", _state.current_location_id),
+        "area": location.get("area", "Unknown"),
+        "exits": sorted(location.get("exits", {}).keys()),
         "quest_title": objective.get("title", ""),
     }
+
+def _kill_panel_payload() -> list[dict]:
+    result = []
+    kill_table = getattr(_state, "kill_counts_by_location", {})
+    if not isinstance(kill_table, dict):
+        return result
+
+    sorted_locations = sorted(
+        kill_table.items(),
+        key=lambda item: LOCATIONS.get(item[0], {}).get("name", str(item[0])),
+    )
+    for location_id, kills in sorted_locations:
+        if not isinstance(kills, dict):
+            continue
+        location_name = LOCATIONS.get(location_id, {}).get("name", str(location_id))
+        rows = []
+        total = 0
+        for enemy_name, count in sorted(kills.items(), key=lambda item: (-int(item[1]), str(item[0]))):
+            safe_count = max(0, int(count))
+            total += safe_count
+            rows.append({"enemy": str(enemy_name), "count": safe_count})
+        result.append({"location": location_name, "total": total, "kills": rows})
+    return result
+
+def _compass_map_ascii() -> str:
+    current_name = LOCATIONS.get(_state.current_location_id, {}).get("name", _state.current_location_id)
+    recommended_target_id, recommended_direction = _engine._recommended_map_step(_state)
+    return ui.format_world_map(
+        current_name,
+        _engine._map_direction_labels(_state, recommended_direction),
+        _engine._map_route_lines(_state, recommended_target_id),
+    )
 
 def _encode_rng_state() -> str:
     state_bytes = pickle.dumps(_state.rng.getstate())
@@ -1053,6 +1277,14 @@ def _state_to_dict() -> dict:
         "flags": sorted(str(flag) for flag in _state.flags),
         "active_encounter": encounter_payload,
         "discovered_locations": sorted(str(loc) for loc in _state.discovered_locations),
+        "kill_counts_by_location": {
+            str(location_id): {
+                str(enemy_name): max(0, int(count))
+                for enemy_name, count in dict(enemy_counts).items()
+            }
+            for location_id, enemy_counts in dict(getattr(_state, "kill_counts_by_location", {})).items()
+            if isinstance(enemy_counts, dict)
+        },
         "turn_count": int(_state.turn_count),
         "game_over": bool(_state.game_over),
         "victory": bool(_state.victory),
@@ -1127,6 +1359,23 @@ def _restore_state(raw: dict) -> bool:
         if restored.current_location_id:
             discovered.add(restored.current_location_id)
         restored.discovered_locations = discovered
+
+        restored.kill_counts_by_location = {}
+        kill_counts_raw = raw.get("kill_counts_by_location", {})
+        if isinstance(kill_counts_raw, dict):
+            for location_id, enemy_counts in kill_counts_raw.items():
+                if not isinstance(enemy_counts, dict):
+                    continue
+                parsed_enemy_counts = {}
+                for enemy_name, count in enemy_counts.items():
+                    try:
+                        safe_count = max(0, int(count))
+                    except Exception:
+                        continue
+                    parsed_enemy_counts[str(enemy_name)] = safe_count
+                if parsed_enemy_counts:
+                    restored.kill_counts_by_location[str(location_id)] = parsed_enemy_counts
+
         restored.turn_count = max(0, int(raw.get("turn_count", restored.turn_count)))
         restored.game_over = bool(raw.get("game_over", False))
         restored.victory = bool(raw.get("victory", False))
@@ -1162,7 +1411,7 @@ def _action_category(command: str) -> str:
         return "movement"
     if verb in {"fight", "defend", "skill", "run", "joke", "bribe", "hunt"}:
         return "combat"
-    if verb in {"quest", "talk", "map"}:
+    if verb in {"quest", "talk"}:
         return "quest"
     if verb in {"use", "read"} and _state.active_encounter:
         return "combat"
@@ -1253,8 +1502,6 @@ def _action_priority(action: dict) -> int:
         score = max(score, 95)
     if command == "status":
         score = max(score, 90)
-    if command == "map":
-        score = max(score, 88)
     if command == "look":
         score = max(score, 70)
     if _is_heal_action(action):
@@ -1383,6 +1630,8 @@ def _action_payload() -> tuple[str, list[dict], list[dict[str, str]]]:
             continue
         command, description = line.split(":", 1)
         action_command = command.strip()
+        if action_command == "map":
+            continue
         command_parts = action_command.split(maxsplit=1)
         verb = command_parts[0].strip() if command_parts else action_command
         argument = command_parts[1].strip() if len(command_parts) > 1 else ""
@@ -1431,9 +1680,13 @@ def _payload(screen: str) -> str:
             "game_over": bool(_state.game_over),
             "in_combat": bool(_state.active_encounter),
             "status_panel": _status_panel_payload(),
+            "compass_map": _compass_map_ascii(),
             "art_title": _current_art_title,
             "art_ascii": _current_art_ascii,
             "art_image": _current_art_image,
+            "inventory_panel": _inventory_panel_payload(),
+            "location_panel": _location_panel_payload(),
+            "kill_panel": _kill_panel_payload(),
             "actions_heading": heading,
             "actions": actions,
             "hints": hints,

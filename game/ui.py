@@ -230,7 +230,6 @@ def help_text() -> str:
         ("system", "quit", "Exit the game."),
         ("info", "status", "Show HP, stats, level, gold, and equipped gear."),
         ("info", "quest", "Show current quest objective and hint."),
-        ("info", "map", "Show a simple directional map from your current location."),
         ("info", "look", "Describe your current location and exits."),
         ("info", "sense", "Show subtle hints about this area."),
         ("explore", "hunt", "Force a creature encounter in areas that have roaming enemies."),
@@ -278,6 +277,7 @@ def help_text() -> str:
     lines.append("Notes:")
     lines.append("  - During encounters, movement/talk/train are blocked until you win, escape, or lose.")
     lines.append("  - `joke` and `bribe` are only valid during the goblin army negotiation phase.")
+    lines.append("  - In the web UI, the compass map is shown as a persistent panel.")
     lines.append("Color key:")
     lines.append(
         "  - "

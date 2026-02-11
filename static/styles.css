@@ -27,15 +27,19 @@ body.combat-active {
 body.combat-active .terminal-shell,
 body.combat-active .status-shell,
 body.combat-active .art-shell,
-body.combat-active .actions-shell {
+body.combat-active .map-shell,
+body.combat-active .actions-shell,
+body.combat-active .inventory-shell,
+body.combat-active .location-shell,
+body.combat-active .kills-shell {
   border-color: rgba(168, 78, 88, 0.8);
   box-shadow: 0 18px 36px rgba(120, 20, 35, 0.35);
 }
 
 .layout {
-  max-width: 1200px;
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 24px 16px 28px;
+  padding: 24px clamp(22px, 3vw, 40px) 30px;
 }
 
 .header {
@@ -54,7 +58,13 @@ body.combat-active .actions-shell {
 
 .terminal-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.05fr) minmax(260px, 1.15fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.top-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1.15fr) minmax(280px, 1.15fr);
   gap: 14px;
   align-items: start;
 }
@@ -63,10 +73,28 @@ body.combat-active .actions-shell {
   min-width: 0;
 }
 
+.middle-pane,
+.right-pane {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+
+.bottom-layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
 .terminal-shell,
 .status-shell,
 .art-shell,
-.actions-shell {
+.map-shell,
+.actions-shell,
+.inventory-shell,
+.location-shell,
+.kills-shell {
   border: 1px solid var(--panel-border);
   background: linear-gradient(180deg, #0e1420, var(--panel));
   border-radius: 12px;
@@ -74,30 +102,22 @@ body.combat-active .actions-shell {
   box-shadow: 0 18px 32px rgba(0, 0, 0, 0.35);
 }
 
-.terminal,
-.actions-list {
-  margin: 0;
-  min-height: 56vh;
-  max-height: 70vh;
-  overflow: auto;
-}
-
 .terminal {
+  margin: 0;
+  min-height: 62vh;
+  max-height: 74vh;
+  overflow: auto;
   padding: 16px;
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.35;
-  font-size: 0.96rem;
-}
-
-.right-pane {
-  display: grid;
-  gap: 12px;
-  align-items: start;
+  font-size: 0.97rem;
 }
 
 .status-title,
-.art-title {
+.art-title,
+.map-title,
+.summary-title {
   margin: 0;
   padding: 12px 14px;
   border-bottom: 1px solid var(--panel-border);
@@ -107,8 +127,8 @@ body.combat-active .actions-shell {
 
 .status-panel {
   padding: 10px 12px;
-  min-height: 56vh;
-  max-height: 70vh;
+  min-height: 270px;
+  max-height: 340px;
   overflow: auto;
   display: grid;
   gap: 10px;
@@ -134,7 +154,7 @@ body.combat-active .actions-shell {
   margin: 0;
   color: var(--text);
   line-height: 1.35;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
 }
 
 .status-list {
@@ -150,7 +170,10 @@ body.combat-active .actions-shell {
   line-height: 1.3;
 }
 
-.status-empty {
+.status-empty,
+.map-empty,
+.summary-empty,
+.actions-empty {
   margin: 0;
   padding: 10px 12px 12px;
   color: var(--muted);
@@ -159,8 +182,8 @@ body.combat-active .actions-shell {
 .art-panel {
   margin: 0;
   padding: 8px;
-  min-height: 148px;
-  max-height: 188px;
+  min-height: 182px;
+  max-height: 252px;
   overflow: auto;
   white-space: pre;
   line-height: 0.42rem;
@@ -177,8 +200,8 @@ body.combat-active .actions-shell {
 .art-image {
   display: block;
   width: 100%;
-  min-height: 148px;
-  max-height: 188px;
+  min-height: 182px;
+  max-height: 252px;
   object-fit: contain;
   object-position: center;
   background: rgba(8, 12, 20, 0.85);
@@ -188,11 +211,21 @@ body.combat-active .actions-shell {
   display: none;
 }
 
-.actions-title {
+.map-panel {
   margin: 0;
-  padding: 12px 14px;
-  font-size: 1rem;
-  color: var(--text);
+  padding: 10px 12px;
+  min-height: 188px;
+  max-height: 252px;
+  overflow: auto;
+  white-space: pre;
+  line-height: 1.15;
+  font-size: 0.79rem;
+  color: #cbd6ed;
+  background: rgba(8, 12, 20, 0.85);
+}
+
+.map-panel[hidden] {
+  display: none;
 }
 
 .actions-head {
@@ -203,6 +236,13 @@ body.combat-active .actions-shell {
   border-bottom: 1px solid var(--panel-border);
 }
 
+.actions-title {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 1rem;
+  color: var(--text);
+}
+
 .hints-toggle {
   padding: 8px 10px;
   margin-right: 12px;
@@ -211,6 +251,10 @@ body.combat-active .actions-shell {
 }
 
 .actions-list {
+  margin: 0;
+  min-height: 40vh;
+  max-height: 54vh;
+  overflow: auto;
   padding: 8px 14px 10px;
 }
 
@@ -290,10 +334,50 @@ body.combat-active .actions-shell {
   line-height: 1.3;
 }
 
-.actions-empty {
+.summary-panel {
+  padding: 10px 12px 12px;
+  min-height: 210px;
+  max-height: 280px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  background: rgba(8, 12, 20, 0.85);
+}
+
+.summary-line {
   margin: 0;
-  padding: 12px 14px 14px;
+  color: var(--text);
+  line-height: 1.3;
+  font-size: 0.88rem;
+}
+
+.summary-subsection {
+  border: 1px solid rgba(145, 160, 187, 0.2);
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: rgba(10, 14, 24, 0.9);
+}
+
+.summary-subtitle {
+  margin: 0 0 6px;
   color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.summary-list {
+  margin: 0;
+  padding-left: 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.summary-list li {
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.3;
 }
 
 .command-row {
@@ -378,32 +462,60 @@ input:disabled {
   color: #ff95da;
 }
 
-@media (max-width: 760px) {
-  .terminal-layout {
-    grid-template-columns: 1fr;
+@media (max-width: 1100px) {
+  .top-layout {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   }
 
-  .terminal,
-  .actions-list,
-  .status-panel {
-    min-height: 50vh;
-    max-height: 62vh;
-  }
-
-  .art-panel {
-    min-height: 130px;
-    max-height: 170px;
-    line-height: 0.46rem;
-    font-size: 0.46rem;
-  }
-
-  .art-image {
-    min-height: 130px;
-    max-height: 170px;
+  .right-pane {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .terminal {
+    min-height: 56vh;
+    max-height: 68vh;
+  }
+
+  .actions-list {
+    min-height: 34vh;
+    max-height: 48vh;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout {
+    padding: 18px 14px 24px;
+  }
+
+  .top-layout,
+  .right-pane,
+  .bottom-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal {
+    min-height: 50vh;
+    max-height: 62vh;
     font-size: 0.9rem;
+  }
+
+  .status-panel,
+  .actions-list,
+  .summary-panel {
+    min-height: 42vh;
+    max-height: 52vh;
+  }
+
+  .map-panel,
+  .art-panel {
+    min-height: 140px;
+    max-height: 190px;
+  }
+
+  .art-image {
+    min-height: 140px;
+    max-height: 190px;
   }
 
   .command-row {

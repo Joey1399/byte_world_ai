@@ -348,7 +348,6 @@ class Engine:
         self._add_action(actions, "sense", "Get environmental hints for this area.")
         self._add_action(actions, "status", "View HP, combat stats, level, and equipped gear.")
         self._add_action(actions, "quest", "Show your current objective and hint.")
-        self._add_action(actions, "map", "Show simple directional map.")
         if location.get("encounters", []):
             self._add_action(
                 actions,
@@ -698,17 +697,6 @@ class Engine:
         if command == "quest":
             objective = quest.get_current_objective(state)
             return [ui.format_quest(objective["title"], objective["description"], objective["hint"])]
-
-        if command == "map":
-            current_name = LOCATIONS[state.current_location_id]["name"]
-            recommended_target_id, recommended_direction = self._recommended_map_step(state)
-            return [
-                ui.format_world_map(
-                    current_name,
-                    self._map_direction_labels(state, recommended_direction),
-                    self._map_route_lines(state, recommended_target_id),
-                )
-            ]
 
         if command == "quit":
             state.game_over = True
