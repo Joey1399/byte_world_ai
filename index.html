@@ -13,26 +13,36 @@
       <p>GitHub Pages terminal mode</p>
     </header>
 
-    <section class="terminal-shell" aria-live="polite">
-      <pre id="terminal" class="terminal"></pre>
-    </section>
+    <div class="terminal-layout">
+      <section class="left-pane">
+        <section class="terminal-shell" aria-live="polite">
+          <pre id="terminal" class="terminal"></pre>
+        </section>
 
-    <form id="command-form" class="command-row" autocomplete="off">
-      <label for="command-input" class="prompt">&gt;</label>
-      <input
-        id="command-input"
-        name="command"
-        type="text"
-        maxlength="200"
-        placeholder="Loading engine..."
-        disabled
-        autofocus
-      >
-      <button id="send-button" type="submit" disabled>Send</button>
-      <button id="reset-button" type="button" disabled>New Game</button>
-    </form>
+        <form id="command-form" class="command-row" autocomplete="off">
+          <label for="command-input" class="prompt">&gt;</label>
+          <input
+            id="command-input"
+            name="command"
+            type="text"
+            maxlength="200"
+            placeholder="Loading engine..."
+            disabled
+            autofocus
+          >
+          <button id="send-button" type="submit" disabled>Send</button>
+          <button id="reset-button" type="button" disabled>New Game</button>
+        </form>
 
-    <p id="status-line" class="status-line">Loading browser runtime...</p>
+        <p id="status-line" class="status-line">Loading browser runtime...</p>
+      </section>
+
+      <aside class="actions-shell" aria-live="polite">
+        <h2 id="actions-title" class="actions-title">Available actions</h2>
+        <ul id="actions-list" class="actions-list"></ul>
+        <p id="actions-empty" class="actions-empty">Loading available actions...</p>
+      </aside>
+    </div>
   </main>
 
   <script src="static/app.js"></script>

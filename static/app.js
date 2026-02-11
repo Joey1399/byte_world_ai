@@ -5,6 +5,9 @@
   const sendButton = document.getElementById("send-button");
   const resetButton = document.getElementById("reset-button");
   const statusLine = document.getElementById("status-line");
+  const actionsTitle = document.getElementById("actions-title");
+  const actionsList = document.getElementById("actions-list");
+  const actionsEmpty = document.getElementById("actions-empty");
 
   const PYODIDE_JS_URL = "https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js";
   const SOURCE_FILES = [
@@ -108,9 +111,57 @@
     }
   }
 
+  function cleanActionsHeading(heading) {
+    const raw = String(heading || "Available actions").trim();
+    const withoutCount = raw.replace(/\(\d+\):?\s*$/, "").trim();
+    return withoutCount || "Available actions";
+  }
+
   function renderScreen(screen) {
     terminal.innerHTML = ansiToHtml(screen);
     terminal.scrollTop = 0;
+  }
+
+  function renderActions(heading, actions, isGameOver = false) {
+    actionsTitle.textContent = cleanActionsHeading(heading);
+    actionsList.replaceChildren();
+
+    const rows = Array.isArray(actions) ? actions : [];
+    if (!rows.length) {
+      actionsEmpty.hidden = false;
+      actionsEmpty.textContent = isGameOver
+        ? "No actions available. Start a new game."
+        : "No actions available right now.";
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    for (const row of rows) {
+      const command = String(row?.command || "").trim();
+      const description = String(row?.description || "").trim();
+
+      const item = document.createElement("li");
+      item.className = "actions-item";
+
+      const commandNode = document.createElement("code");
+      commandNode.className = "action-command";
+      commandNode.textContent = command || "(unknown)";
+
+      const descriptionNode = document.createElement("p");
+      descriptionNode.className = "action-description";
+      descriptionNode.textContent = description || "No description.";
+
+      item.append(commandNode, descriptionNode);
+      fragment.appendChild(item);
+    }
+
+    actionsList.appendChild(fragment);
+    actionsEmpty.hidden = true;
+  }
+
+  function renderPayload(payload) {
+    renderScreen(payload.screen);
+    renderActions(payload.actions_heading, payload.actions, Boolean(payload.game_over));
   }
 
   function parsePayload(payload) {
@@ -169,13 +220,54 @@ os.environ["BYTE_WORLD_AI_FORCE_COLOR"] = "1"
 os.environ["BYTE_WORLD_AI_NO_CLEAR"] = "1"
 
 from game.engine import Engine
+from game import ui
 from game.state import create_initial_state
 
 _engine = Engine()
 _state = create_initial_state()
 
+def _action_payload() -> tuple[str, list[dict[str, str]]]:
+    if _state.game_over:
+        return "Available actions (0):", []
+
+    lines = _engine._build_input_hints(_state)
+    if not lines:
+        return "Available actions (0):", []
+
+    heading = str(lines[0])
+    actions: list[dict[str, str]] = []
+    for raw in lines[1:]:
+        line = str(raw).strip()
+        if not line or ":" not in line:
+            continue
+        command, description = line.split(":", 1)
+        actions.append(
+            {
+                "command": command.strip(),
+                "description": description.strip(),
+            }
+        )
+    return heading, actions
+
+def _strip_hint_block(screen: str) -> str:
+    if _state.game_over:
+        return screen
+
+    hints = ui.format_messages(_engine._build_input_hints(_state))
+    if hints and screen.endswith(hints):
+        return screen[: -len(hints)].rstrip()
+    return screen
+
 def _payload(screen: str) -> str:
-    return json.dumps({"screen": screen, "game_over": bool(_state.game_over)})
+    heading, actions = _action_payload()
+    return json.dumps(
+        {
+            "screen": _strip_hint_block(screen),
+            "game_over": bool(_state.game_over),
+            "actions_heading": heading,
+            "actions": actions,
+        }
+    )
 
 def web_initial() -> str:
     return _payload(_engine.initial_screen(_state))
@@ -209,8 +301,8 @@ def web_reset() -> str:
     await bootstrapGameApi();
 
     const payload = parsePayload(api.initial());
-    renderScreen(payload.screen);
     gameOver = Boolean(payload.game_over);
+    renderPayload(payload);
     initialized = true;
 
     if (gameOver) {
@@ -224,8 +316,8 @@ def web_reset() -> str:
 
   async function handleCommand(command) {
     const payload = parsePayload(api.process(command));
-    renderScreen(payload.screen);
     gameOver = Boolean(payload.game_over);
+    renderPayload(payload);
     if (gameOver) {
       setStatus("Game over. Start a new game to continue.", true);
     } else {
@@ -235,8 +327,8 @@ def web_reset() -> str:
 
   async function handleReset() {
     const payload = parsePayload(api.reset());
-    renderScreen(payload.screen);
     gameOver = Boolean(payload.game_over);
+    renderPayload(payload);
     setStatus("New game started.");
   }
 
@@ -290,6 +382,8 @@ def web_reset() -> str:
   startGame().catch((error) => {
     setStatus("Startup failed. Check console for details.", true);
     terminal.textContent = String(error);
+    renderActions("Available actions", [], false);
+    actionsEmpty.textContent = "Unable to load actions.";
     console.error(error);
   });
 })();
