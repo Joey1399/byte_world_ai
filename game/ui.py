@@ -314,11 +314,13 @@ def format_status(status: dict) -> str:
     equipment = status["equipment"]
     equipped_text = ", ".join(f"{slot}:{item}" for slot, item in equipment.items())
     titles = ", ".join(status["titles"]) if status["titles"] else "none"
+    hp_bar = health_bar(int(status["hp"]), int(status["max_hp"]))
     return "\n".join(
         [
             DIVIDER,
             f"{status['name']}  Level {status['level']}",
             f"HP: {status['hp']}/{status['max_hp']}  Attack: {status['attack']}  Defense: {status['defense']}",
+            f"HP Bar: {hp_bar}",
             f"XP: {status['xp']}  Skill Points: {status['skill_points']}  Gold: {status['gold']}",
             f"Titles: {titles}",
             f"Equipped: {equipped_text}",

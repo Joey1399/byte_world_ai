@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>byte_world_ai Web CLI</title>
-  <link rel="stylesheet" href="static/styles.css?v=20260211b">
+  <link rel="stylesheet" href="static/styles.css?v=20260211c">
   <style>
     /* Critical fallback to keep a two-pane layout even during stale asset cache windows. */
     .terminal-layout {
@@ -20,10 +20,21 @@
       overflow: hidden;
     }
 
+    .actions-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #2a3448;
+    }
+
     .actions-title {
       margin: 0;
-      padding: 12px 14px;
-      border-bottom: 1px solid #2a3448;
+      padding: 12px 14px 12px 14px;
+    }
+
+    .hints-toggle {
+      margin-right: 12px;
     }
 
     @media (max-width: 760px) {
@@ -65,13 +76,16 @@
       </section>
 
       <aside class="actions-shell" aria-live="polite">
-        <h2 id="actions-title" class="actions-title">Available actions</h2>
+        <div class="actions-head">
+          <h2 id="actions-title" class="actions-title">Available actions</h2>
+          <button id="hints-toggle" class="hints-toggle" type="button">Hints: On</button>
+        </div>
         <div id="actions-list" class="actions-list"></div>
         <p id="actions-empty" class="actions-empty">Loading available actions...</p>
       </aside>
     </div>
   </main>
 
-  <script src="static/app.js?v=20260211b"></script>
+  <script src="static/app.js?v=20260211c"></script>
 </body>
 </html>
