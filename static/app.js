@@ -38,6 +38,13 @@
   };
   const ANSI_PATTERN = /\x1b\[([0-9;]+)m/g;
   const CONTROL_PATTERN = /\x1b\[(?![0-9;]*m)[0-9;]*[A-Za-z]/g;
+  const ACTION_BUCKET_ORDER = ["movement", "combat", "quest", "player"];
+  const ACTION_BUCKET_LABEL = {
+    movement: "Movement",
+    combat: "Combat",
+    quest: "Quest",
+    player: "Player",
+  };
 
   let pyodide = null;
   let api = null;
@@ -101,12 +108,27 @@
     statusLine.classList.toggle("over", Boolean(isError));
   }
 
+  function normalizeCategory(category) {
+    const normalized = String(category || "").trim().toLowerCase();
+    return ACTION_BUCKET_ORDER.includes(normalized) ? normalized : "player";
+  }
+
+  function setActionButtonsEnabled(enabled) {
+    const canUse = Boolean(enabled);
+    const buttons = actionsList.querySelectorAll(".action-button");
+    buttons.forEach((button) => {
+      button.disabled = !canUse;
+    });
+  }
+
   function setInputEnabled(enabled) {
     const value = Boolean(enabled);
-    input.disabled = !value;
-    sendButton.disabled = !value;
+    const allowCommandInput = value && !gameOver;
+    input.disabled = !allowCommandInput;
+    sendButton.disabled = !allowCommandInput;
     resetButton.disabled = !value;
-    if (value) {
+    setActionButtonsEnabled(value && initialized && !gameOver);
+    if (allowCommandInput) {
       input.focus();
     }
   }
@@ -126,7 +148,28 @@
     actionsTitle.textContent = cleanActionsHeading(heading);
     actionsList.replaceChildren();
 
-    const rows = Array.isArray(actions) ? actions : [];
+    const rows = [];
+    for (const raw of Array.isArray(actions) ? actions : []) {
+      const command = String(raw?.command || "").trim();
+      if (!command) {
+        continue;
+      }
+      const description = String(raw?.description || "").trim() || "No description.";
+      const verb = String(raw?.verb || command.split(/\s+/, 1)[0] || "").trim();
+      const argument =
+        String(raw?.argument || "").trim() || (command.length > verb.length ? command.slice(verb.length).trim() : "");
+      const argumentColor = String(raw?.argument_color || "").trim();
+      const category = normalizeCategory(raw?.category);
+      rows.push({
+        command,
+        description,
+        verb,
+        argument,
+        argumentColor,
+        category,
+      });
+    }
+
     if (!rows.length) {
       actionsEmpty.hidden = false;
       actionsEmpty.textContent = isGameOver
@@ -135,24 +178,68 @@
       return;
     }
 
-    const fragment = document.createDocumentFragment();
+    const grouped = new Map(ACTION_BUCKET_ORDER.map((bucket) => [bucket, []]));
     for (const row of rows) {
-      const command = String(row?.command || "").trim();
-      const description = String(row?.description || "").trim();
+      grouped.get(row.category).push(row);
+    }
 
-      const item = document.createElement("li");
-      item.className = "actions-item";
+    const fragment = document.createDocumentFragment();
+    for (const bucket of ACTION_BUCKET_ORDER) {
+      const bucketRows = grouped.get(bucket) || [];
+      if (!bucketRows.length) {
+        continue;
+      }
 
-      const commandNode = document.createElement("code");
-      commandNode.className = "action-command";
-      commandNode.textContent = command || "(unknown)";
+      const group = document.createElement("section");
+      group.className = "actions-group";
 
-      const descriptionNode = document.createElement("p");
-      descriptionNode.className = "action-description";
-      descriptionNode.textContent = description || "No description.";
+      const groupTitle = document.createElement("h3");
+      groupTitle.className = "actions-group-title";
+      groupTitle.textContent = ACTION_BUCKET_LABEL[bucket] || bucket;
 
-      item.append(commandNode, descriptionNode);
-      fragment.appendChild(item);
+      const groupList = document.createElement("div");
+      groupList.className = "actions-group-list";
+
+      for (const row of bucketRows) {
+        const item = document.createElement("div");
+        item.className = "actions-item";
+
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.className = "action-button";
+        actionButton.dataset.command = row.command;
+        actionButton.disabled = !initialized || busy || isGameOver;
+
+        const commandNode = document.createElement("code");
+        commandNode.className = "action-command";
+
+        const verbNode = document.createElement("span");
+        verbNode.className = "action-verb";
+        verbNode.textContent = row.verb || row.command;
+        commandNode.appendChild(verbNode);
+
+        if (row.argument) {
+          commandNode.appendChild(document.createTextNode(" "));
+          const argumentNode = document.createElement("span");
+          argumentNode.className = "action-argument";
+          if (row.argumentColor) {
+            argumentNode.classList.add(row.argumentColor);
+          }
+          argumentNode.textContent = row.argument;
+          commandNode.appendChild(argumentNode);
+        }
+
+        const descriptionNode = document.createElement("p");
+        descriptionNode.className = "action-description";
+        descriptionNode.textContent = row.description;
+
+        actionButton.append(commandNode, descriptionNode);
+        item.appendChild(actionButton);
+        groupList.appendChild(item);
+      }
+
+      group.append(groupTitle, groupList);
+      fragment.appendChild(group);
     }
 
     actionsList.appendChild(fragment);
@@ -219,12 +306,108 @@ import os
 os.environ["BYTE_WORLD_AI_FORCE_COLOR"] = "1"
 os.environ["BYTE_WORLD_AI_NO_CLEAR"] = "1"
 
+from content.enemies import ENEMIES
+from content.items import ITEMS
+from content.world import NPCS
 from game.engine import Engine
 from game import ui
 from game.state import create_initial_state
 
 _engine = Engine()
 _state = create_initial_state()
+
+_END_BOSS_IDS = {"king_makor", "onyx_witch"}
+_IMPORTANT_OR_RARE_ITEM_IDS = {
+    "crusty_key",
+    "mysterious_ring",
+    "goblin_riddle",
+    "makor_soul",
+    "vial_of_tears",
+    "hoard_treasure",
+    "dragon_ring",
+    "moonbite_dagger",
+    "echo_plate",
+    "warding_totem",
+    "skill_cache_10",
+    "skill_cache_20",
+    "skill_cache_30",
+}
+_SKILL_TERMS = {
+    "attack",
+    "defense",
+    "health",
+    "focus strike",
+    "guard stance",
+    "second wind",
+}
+_NPC_COLOR_BY_NAME = {
+    npc.get("name", "").strip().lower(): "ansi-blue"
+    for npc in NPCS.values()
+    if npc.get("name")
+}
+
+_ENEMY_COLOR_BY_NAME: dict[str, str] = {}
+for _enemy_id, _enemy in ENEMIES.items():
+    _enemy_name = _enemy.get("name", "").strip().lower()
+    if not _enemy_name:
+        continue
+    if _enemy_id in _END_BOSS_IDS:
+        _ENEMY_COLOR_BY_NAME[_enemy_name] = "ansi-red"
+    elif _enemy.get("category") == "boss":
+        _ENEMY_COLOR_BY_NAME[_enemy_name] = "ansi-orange"
+    else:
+        _ENEMY_COLOR_BY_NAME[_enemy_name] = "ansi-yellow"
+
+_ITEM_COLOR_BY_NAME: dict[str, str] = {}
+for _item_id, _item in ITEMS.items():
+    _item_name = _item.get("name", "").strip().lower()
+    if not _item_name:
+        continue
+    _is_rare = _item_id in _IMPORTANT_OR_RARE_ITEM_IDS or _item.get("type") in {"quest", "key", "boon"}
+    _ITEM_COLOR_BY_NAME[_item_name] = "ansi-purple" if _is_rare else "ansi-green"
+
+def _action_category(command: str) -> str:
+    verb = command.split(" ", 1)[0].strip().lower() if command else ""
+    if verb == "move":
+        return "movement"
+    if verb in {"fight", "defend", "skill", "run", "joke", "bribe"}:
+        return "combat"
+    if verb in {"quest", "talk", "map"}:
+        return "quest"
+    if verb in {"use", "read"} and _state.active_encounter:
+        return "combat"
+    return "player"
+
+def _argument_color(verb: str, argument: str) -> str:
+    arg = argument.strip().lower()
+    if not arg:
+        return ""
+
+    if verb == "talk":
+        return _NPC_COLOR_BY_NAME.get(arg, "ansi-blue")
+    if verb == "skill":
+        return "ansi-pink"
+    if verb == "train":
+        stat = arg.split(" ", 1)[0]
+        if stat in {"attack", "defense", "health"}:
+            return "ansi-pink"
+        return ""
+    if verb in {"use", "equip", "read"}:
+        if arg in {"all", "a,b,c"}:
+            return ""
+        return _ITEM_COLOR_BY_NAME.get(arg, "ansi-green")
+    if verb == "fight" and arg:
+        return _ENEMY_COLOR_BY_NAME.get(arg, "ansi-yellow")
+
+    if arg in _SKILL_TERMS:
+        return "ansi-pink"
+    if arg in _NPC_COLOR_BY_NAME:
+        return "ansi-blue"
+    if arg in _ENEMY_COLOR_BY_NAME:
+        return _ENEMY_COLOR_BY_NAME[arg]
+    if arg in _ITEM_COLOR_BY_NAME:
+        return _ITEM_COLOR_BY_NAME[arg]
+    return ""
 
 def _action_payload() -> tuple[str, list[dict[str, str]]]:
     if _state.game_over:
@@ -241,10 +424,19 @@ def _action_payload() -> tuple[str, list[dict[str, str]]]:
         if not line or ":" not in line:
             continue
         command, description = line.split(":", 1)
+        action_command = command.strip()
+        command_parts = action_command.split(maxsplit=1)
+        verb = command_parts[0].strip() if command_parts else action_command
+        argument = command_parts[1].strip() if len(command_parts) > 1 else ""
+        verb_lower = verb.lower()
         actions.append(
             {
-                "command": command.strip(),
+                "command": action_command,
                 "description": description.strip(),
+                "category": _action_category(action_command),
+                "verb": verb,
+                "argument": argument,
+                "argument_color": _argument_color(verb_lower, argument),
             }
         )
     return heading, actions
@@ -332,13 +524,12 @@ def web_reset() -> str:
     setStatus("New game started.");
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  async function runActionCommand(rawCommand, clearInput = false) {
     if (!initialized || busy || gameOver) {
       return;
     }
 
-    const command = input.value.trim();
+    const command = String(rawCommand || "").trim();
     if (!command) {
       input.focus();
       return;
@@ -349,7 +540,9 @@ def web_reset() -> str:
     setStatus("Running command...");
     try {
       await handleCommand(command);
-      input.value = "";
+      if (clearInput) {
+        input.value = "";
+      }
     } catch (error) {
       setStatus("Command failed. Refresh page to recover.", true);
       console.error(error);
@@ -357,6 +550,20 @@ def web_reset() -> str:
       busy = false;
       setInputEnabled(true);
     }
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runActionCommand(input.value, true);
+  });
+
+  actionsList.addEventListener("click", async (event) => {
+    const actionButton = event.target.closest(".action-button");
+    if (!actionButton) {
+      return;
+    }
+    const command = actionButton.dataset.command || "";
+    await runActionCommand(command, false);
   });
 
   resetButton.addEventListener("click", async () => {
