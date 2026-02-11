@@ -31,8 +31,6 @@
     "content/items.py",
     "content/quests.py",
     "content/world.py",
-    "content/art/ascii-art.txt",
-    "content/art/frog.txt",
     "game/__init__.py",
     "game/commands.py",
     "game/engine.py",
@@ -877,11 +875,12 @@ _OLD_SHACK_WISE_OLD_MAN_ASCII = _load_ascii_art(
     "content/art/ascii-art.txt",
     fallback=_WISE_OLD_MAN_FALLBACK,
 )
+_WISE_OLD_MAN_IMAGE = "content/art/wise_old_man.png"
 _GIANT_FROG_ASCII = _load_ascii_art(
     "content/art/frog.txt",
     fallback=_GIANT_FROG_FALLBACK,
 )
-_GIANT_FROG_IMAGE = "content/art/ascii-art-image%20(1).png"
+_GIANT_FROG_IMAGE = "content/art/giant_frog.png"
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
     "old_shack": [
@@ -1257,11 +1256,11 @@ def _boxed_art(title: str, glyph_lines: list[str]) -> str:
     output.append(border)
     return "\n".join(output)
 
-def _location_art(location_id: str) -> tuple[str, str]:
+def _location_art(location_id: str) -> tuple[str, str, str]:
     loc = LOCATIONS.get(location_id, {})
     title = loc.get("name", str(location_id))
     if location_id == "old_shack" and _OLD_SHACK_WISE_OLD_MAN_ASCII:
-        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII
+        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII, _WISE_OLD_MAN_IMAGE
     glyph = _LOCATION_GLYPHS.get(location_id)
     if not glyph:
         glyph = [
@@ -1271,15 +1270,15 @@ def _location_art(location_id: str) -> tuple[str, str]:
             "     |        | |",
             "     |________|/",
         ]
-    return title, _boxed_art(title, glyph)
+    return title, _boxed_art(title, glyph), ""
 
-def _npc_art(npc_id: str) -> tuple[str, str]:
+def _npc_art(npc_id: str) -> tuple[str, str, str]:
     npc = NPCS.get(npc_id, {})
     title = npc.get("name", npc_id)
     if npc_id == "wise_old_man" and _state.current_location_id == "old_shack" and _OLD_SHACK_WISE_OLD_MAN_ASCII:
-        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII
+        return title, _OLD_SHACK_WISE_OLD_MAN_ASCII, _WISE_OLD_MAN_IMAGE
     glyph = _NPC_GLYPHS.get(npc_id, _NPC_GLYPHS.get("wise_old_man", []))
-    return title, _boxed_art(title, glyph)
+    return title, _boxed_art(title, glyph), ""
 
 def _enemy_art(enemy_id: str) -> tuple[str, str, str]:
     enemy = ENEMIES.get(enemy_id, {})
@@ -1941,8 +1940,8 @@ def _payload(screen: str) -> str:
 
 def web_initial() -> str:
     if not _current_art_ascii and not _current_art_image:
-        location_title, location_ascii = _location_art(_state.current_location_id)
-        _set_art(location_title, location_ascii)
+        location_title, location_ascii, location_image = _location_art(_state.current_location_id)
+        _set_art(location_title, location_ascii, location_image)
     return _payload(_engine.initial_screen(_state))
 
 def web_process(command: str) -> str:
@@ -1959,15 +1958,15 @@ def web_process(command: str) -> str:
     elif command_text.startswith("talk "):
         npc_id = _matching_npc_id_from_command(command_text)
         if npc_id:
-            npc_title, npc_ascii = _npc_art(npc_id)
-            _set_art(npc_title, npc_ascii)
+            npc_title, npc_ascii, npc_image = _npc_art(npc_id)
+            _set_art(npc_title, npc_ascii, npc_image)
     elif (
         command_text.startswith("move ")
         and _state.current_location_id != previous_location
         and _state.current_location_id not in previous_discovered
     ):
-        location_title, location_ascii = _location_art(_state.current_location_id)
-        _set_art(location_title, location_ascii)
+        location_title, location_ascii, location_image = _location_art(_state.current_location_id)
+        _set_art(location_title, location_ascii, location_image)
 
     payload = json.loads(_payload(screen))
     screen_text = str(payload.get("screen", ""))
@@ -1979,8 +1978,8 @@ def web_process(command: str) -> str:
 def web_reset() -> str:
     global _state
     _state = create_initial_state()
-    location_title, location_ascii = _location_art(_state.current_location_id)
-    _set_art(location_title, location_ascii)
+    location_title, location_ascii, location_image = _location_art(_state.current_location_id)
+    _set_art(location_title, location_ascii, location_image)
     return _payload(_engine.initial_screen(_state))
 
 def web_save_state() -> str:
@@ -2006,8 +2005,8 @@ def web_load_state(snapshot: str) -> str:
         enemy_title, enemy_ascii, enemy_image = _enemy_art(_state.active_encounter.enemy_id)
         _set_art(enemy_title, enemy_ascii, enemy_image)
     else:
-        location_title, location_ascii = _location_art(_state.current_location_id)
-        _set_art(location_title, location_ascii)
+        location_title, location_ascii, location_image = _location_art(_state.current_location_id)
+        _set_art(location_title, location_ascii, location_image)
 
     restored_payload = json.loads(_payload(_resume_screen()))
     return json.dumps({"ok": True, "payload": restored_payload})
