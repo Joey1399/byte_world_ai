@@ -881,7 +881,7 @@ _GIANT_FROG_ASCII = _load_ascii_art(
     "content/art/frog.txt",
     fallback=_GIANT_FROG_FALLBACK,
 )
-_GIANT_FROG_IMAGE = "content/art/ascii-art-image.png"
+_GIANT_FROG_IMAGE = "content/art/ascii-art-image%20(1).png"
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
     "old_shack": [
