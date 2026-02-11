@@ -47,6 +47,7 @@
     player: "Player",
   };
   const HINT_STORAGE_KEY = "byte_world_ai_hints_enabled";
+  const SAVE_STORAGE_KEY = "byte_world_ai_save_v1";
 
   let pyodide = null;
   let api = null;
@@ -110,6 +111,30 @@
   function setStatus(message, isError = false) {
     statusLine.textContent = message;
     statusLine.classList.toggle("over", Boolean(isError));
+  }
+
+  function readSavedGame() {
+    try {
+      return window.localStorage.getItem(SAVE_STORAGE_KEY);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function writeSavedGame(snapshot) {
+    try {
+      window.localStorage.setItem(SAVE_STORAGE_KEY, snapshot);
+    } catch (_error) {
+      // Ignore storage write failures.
+    }
+  }
+
+  function clearSavedGame() {
+    try {
+      window.localStorage.removeItem(SAVE_STORAGE_KEY);
+    } catch (_error) {
+      // Ignore storage failures.
+    }
   }
 
   function loadHintsPreference() {
@@ -360,6 +385,39 @@
     return JSON.parse(jsonText);
   }
 
+  function persistGameState() {
+    if (!api || typeof api.save !== "function") {
+      return;
+    }
+    try {
+      const snapshot = String(api.save() || "");
+      if (snapshot) {
+        writeSavedGame(snapshot);
+      }
+    } catch (error) {
+      console.error("Failed to persist save state.", error);
+    }
+  }
+
+  function tryRestoreSavedGame() {
+    const snapshot = readSavedGame();
+    if (!snapshot || !api || typeof api.load !== "function") {
+      return { restored: false, payload: null, invalid: false };
+    }
+
+    try {
+      const result = parsePayload(api.load(snapshot));
+      if (result && result.ok && result.payload) {
+        return { restored: true, payload: result.payload, invalid: false };
+      }
+    } catch (error) {
+      console.error("Failed to load saved game.", error);
+    }
+
+    clearSavedGame();
+    return { restored: false, payload: null, invalid: true };
+  }
+
   async function ensurePyodideLoader() {
     if (typeof window.loadPyodide === "function") {
       return;
@@ -404,18 +462,20 @@
 
   async function bootstrapGameApi() {
     const bootstrapCode = `
+import base64
 import json
 import os
+import pickle
 
 os.environ["BYTE_WORLD_AI_FORCE_COLOR"] = "1"
 os.environ["BYTE_WORLD_AI_NO_CLEAR"] = "1"
 
 from content.enemies import ENEMIES
 from content.items import EQUIPMENT_SLOT_BY_TYPE, ITEMS
-from content.world import NPCS
+from content.world import LOCATIONS, NPCS
 from game.engine import Engine
 from game import ui
-from game.state import create_initial_state, get_effective_stats
+from game.state import Encounter, clamp_player_hp, create_initial_state, get_effective_stats
 
 _engine = Engine()
 _state = create_initial_state()
@@ -568,6 +628,158 @@ def _recommended_move_command() -> str | None:
     if not target_id or not direction:
         return None
     return f"move {direction}"
+
+def _encode_rng_state() -> str:
+    state_bytes = pickle.dumps(_state.rng.getstate())
+    return base64.b64encode(state_bytes).decode("ascii")
+
+def _decode_rng_state(encoded: str) -> tuple | None:
+    try:
+        data = base64.b64decode(encoded.encode("ascii"))
+        return pickle.loads(data)
+    except Exception:
+        return None
+
+def _state_to_dict() -> dict:
+    encounter_payload = None
+    if _state.active_encounter:
+        encounter = _state.active_encounter
+        encounter_payload = {
+            "enemy_id": encounter.enemy_id,
+            "current_hp": int(encounter.current_hp),
+            "intent_index": int(encounter.intent_index),
+            "player_defending": bool(encounter.player_defending),
+            "special_phase": str(encounter.special_phase),
+            "witch_barrier_active": bool(encounter.witch_barrier_active),
+            "turn_count": int(encounter.turn_count),
+        }
+
+    return {
+        "schema_version": 1,
+        "player": {
+            "name": _state.player.name,
+            "base_max_hp": int(_state.player.base_max_hp),
+            "base_attack": int(_state.player.base_attack),
+            "base_defense": int(_state.player.base_defense),
+            "hp": int(_state.player.hp),
+            "xp": int(_state.player.xp),
+            "level": int(_state.player.level),
+            "skill_points": int(_state.player.skill_points),
+            "gold": int(_state.player.gold),
+            "inventory": {str(k): int(v) for k, v in _state.player.inventory.items()},
+            "equipment": {str(k): (str(v) if v else None) for k, v in _state.player.equipment.items()},
+            "skills": sorted(str(skill) for skill in _state.player.skills),
+            "cooldowns": {str(k): int(v) for k, v in _state.player.cooldowns.items()},
+            "titles": [str(title) for title in _state.player.titles],
+            "temporary_bonuses": {str(k): int(v) for k, v in _state.player.temporary_bonuses.items()},
+        },
+        "current_location_id": str(_state.current_location_id),
+        "quest_stage": str(_state.quest_stage),
+        "flags": sorted(str(flag) for flag in _state.flags),
+        "active_encounter": encounter_payload,
+        "discovered_locations": sorted(str(loc) for loc in _state.discovered_locations),
+        "turn_count": int(_state.turn_count),
+        "game_over": bool(_state.game_over),
+        "victory": bool(_state.victory),
+        "rng_state": _encode_rng_state(),
+    }
+
+def _restore_state(raw: dict) -> bool:
+    global _state
+    try:
+        player_raw = raw.get("player")
+        if not isinstance(player_raw, dict):
+            return False
+
+        restored = create_initial_state()
+        player = restored.player
+
+        player.name = str(player_raw.get("name", player.name))
+        player.base_max_hp = int(player_raw.get("base_max_hp", player.base_max_hp))
+        player.base_attack = int(player_raw.get("base_attack", player.base_attack))
+        player.base_defense = int(player_raw.get("base_defense", player.base_defense))
+        player.hp = int(player_raw.get("hp", player.hp))
+        player.xp = int(player_raw.get("xp", player.xp))
+        player.level = int(player_raw.get("level", player.level))
+        player.skill_points = int(player_raw.get("skill_points", player.skill_points))
+        player.gold = int(player_raw.get("gold", player.gold))
+        player.inventory = {
+            str(k): max(0, int(v))
+            for k, v in dict(player_raw.get("inventory", {})).items()
+        }
+        equipment_map = dict(player.equipment)
+        for k, v in dict(player_raw.get("equipment", {})).items():
+            equipment_map[str(k)] = str(v) if v else None
+        player.equipment = equipment_map
+        player.skills = {str(skill) for skill in player_raw.get("skills", [])}
+        player.cooldowns = {
+            str(k): max(0, int(v))
+            for k, v in dict(player_raw.get("cooldowns", {})).items()
+        }
+        player.titles = [str(title) for title in player_raw.get("titles", [])]
+        player.temporary_bonuses = {
+            str(k): int(v)
+            for k, v in dict(player_raw.get("temporary_bonuses", {})).items()
+        }
+        clamp_player_hp(player)
+
+        restored.current_location_id = str(raw.get("current_location_id", restored.current_location_id))
+        if restored.current_location_id not in LOCATIONS:
+            restored.current_location_id = "old_shack"
+
+        restored.quest_stage = str(raw.get("quest_stage", restored.quest_stage))
+        if restored.quest_stage not in _QUEST_STEPS:
+            restored.quest_stage = "awakening"
+        restored.flags = {str(flag) for flag in raw.get("flags", [])}
+
+        encounter_raw = raw.get("active_encounter")
+        if isinstance(encounter_raw, dict):
+            restored.active_encounter = Encounter(
+                enemy_id=str(encounter_raw.get("enemy_id", "")),
+                current_hp=max(0, int(encounter_raw.get("current_hp", 0))),
+                intent_index=max(0, int(encounter_raw.get("intent_index", 0))),
+                player_defending=bool(encounter_raw.get("player_defending", False)),
+                special_phase=str(encounter_raw.get("special_phase", "combat")),
+                witch_barrier_active=bool(encounter_raw.get("witch_barrier_active", False)),
+                turn_count=max(0, int(encounter_raw.get("turn_count", 0))),
+            )
+            if restored.active_encounter.enemy_id not in ENEMIES:
+                restored.active_encounter = None
+        else:
+            restored.active_encounter = None
+
+        discovered = {str(loc) for loc in raw.get("discovered_locations", [])}
+        if restored.current_location_id:
+            discovered.add(restored.current_location_id)
+        restored.discovered_locations = discovered
+        restored.turn_count = max(0, int(raw.get("turn_count", restored.turn_count)))
+        restored.game_over = bool(raw.get("game_over", False))
+        restored.victory = bool(raw.get("victory", False))
+
+        rng_state_raw = raw.get("rng_state")
+        if isinstance(rng_state_raw, str) and rng_state_raw:
+            decoded = _decode_rng_state(rng_state_raw)
+            if decoded is not None:
+                restored.rng.setstate(decoded)
+
+        max_hp = max(1, get_effective_stats(restored.player)["max_hp"])
+        restored.player.hp = max(0, min(int(restored.player.hp), max_hp))
+
+        _state = restored
+        return True
+    except Exception:
+        return False
+
+def _resume_screen() -> str:
+    resume_messages = ["Saved game loaded from your browser."]
+    if _state.active_encounter:
+        enemy_id = _state.active_encounter.enemy_id
+        enemy_name = ENEMIES.get(enemy_id, {}).get("name", enemy_id)
+        resume_messages.append(f"Encounter in progress: {enemy_name}.")
+    else:
+        location_name = LOCATIONS.get(_state.current_location_id, {}).get("name", _state.current_location_id)
+        resume_messages.append(f"Current location: {location_name}.")
+    return _engine._render_screen(_state, action_messages=resume_messages)
 
 def _action_category(command: str) -> str:
     verb = command.split(" ", 1)[0].strip().lower() if command else ""
@@ -855,6 +1067,28 @@ def web_reset() -> str:
     global _state
     _state = create_initial_state()
     return _payload(_engine.initial_screen(_state))
+
+def web_save_state() -> str:
+    return json.dumps({"version": 1, "state": _state_to_dict()})
+
+def web_load_state(snapshot: str) -> str:
+    try:
+        payload = json.loads(str(snapshot or ""))
+    except Exception:
+        return json.dumps({"ok": False, "error": "invalid_json"})
+
+    if not isinstance(payload, dict):
+        return json.dumps({"ok": False, "error": "invalid_payload"})
+
+    state_payload = payload.get("state")
+    if not isinstance(state_payload, dict):
+        return json.dumps({"ok": False, "error": "missing_state"})
+
+    if not _restore_state(state_payload):
+        return json.dumps({"ok": False, "error": "restore_failed"})
+
+    restored_payload = json.loads(_payload(_resume_screen()))
+    return json.dumps({"ok": True, "payload": restored_payload})
 `;
 
     await pyodide.runPythonAsync(bootstrapCode);
@@ -862,6 +1096,8 @@ def web_reset() -> str:
       initial: pyodide.globals.get("web_initial"),
       process: pyodide.globals.get("web_process"),
       reset: pyodide.globals.get("web_reset"),
+      save: pyodide.globals.get("web_save_state"),
+      load: pyodide.globals.get("web_load_state"),
     };
   }
 
@@ -876,12 +1112,22 @@ def web_reset() -> str:
     setStatus("Starting game engine...");
     await bootstrapGameApi();
 
-    const payload = parsePayload(api.initial());
+    const restoreAttempt = tryRestoreSavedGame();
+    const payload = restoreAttempt.payload || parsePayload(api.initial());
     gameOver = Boolean(payload.game_over);
     renderPayload(payload);
     initialized = true;
+    persistGameState();
 
-    if (gameOver) {
+    if (restoreAttempt.restored) {
+      if (gameOver) {
+        setStatus("Saved game loaded. Game over. Start a new game to continue.", true);
+      } else {
+        setStatus("Saved game loaded. Enter a command to continue.");
+      }
+    } else if (restoreAttempt.invalid) {
+      setStatus("Saved game could not be restored. Started a new game.");
+    } else if (gameOver) {
       setStatus("Game over. Start a new game to continue.", true);
     } else {
       setStatus("Enter a command to continue.");
@@ -894,6 +1140,7 @@ def web_reset() -> str:
     const payload = parsePayload(api.process(command));
     gameOver = Boolean(payload.game_over);
     renderPayload(payload);
+    persistGameState();
     if (gameOver) {
       setStatus("Game over. Start a new game to continue.", true);
     } else {
@@ -905,6 +1152,7 @@ def web_reset() -> str:
     const payload = parsePayload(api.reset());
     gameOver = Boolean(payload.game_over);
     renderPayload(payload);
+    persistGameState();
     setStatus("New game started.");
   }
 
