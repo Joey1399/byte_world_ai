@@ -5,6 +5,10 @@
   const sendButton = document.getElementById("send-button");
   const resetButton = document.getElementById("reset-button");
   const statusLine = document.getElementById("status-line");
+  const statusPanel = document.getElementById("status-panel");
+  const statusEmpty = document.getElementById("status-empty");
+  const artTitle = document.getElementById("art-title");
+  const artPanel = document.getElementById("art-panel");
   const actionsTitle = document.getElementById("actions-title");
   const actionsList = document.getElementById("actions-list");
   const actionsEmpty = document.getElementById("actions-empty");
@@ -132,6 +136,16 @@
   function clearSavedGame() {
     try {
       window.localStorage.removeItem(SAVE_STORAGE_KEY);
+      const staleKeys = [];
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (key && key.startsWith("byte_world_ai_save_")) {
+          staleKeys.push(key);
+        }
+      }
+      for (const key of staleKeys) {
+        window.localStorage.removeItem(key);
+      }
     } catch (_error) {
       // Ignore storage failures.
     }
@@ -216,6 +230,77 @@
 
   function setCombatTint(inCombat) {
     document.body.classList.toggle("combat-active", Boolean(inCombat));
+  }
+
+  function createStatusSection(label, valueText, listItems = null) {
+    const section = document.createElement("section");
+    section.className = "status-section";
+
+    const heading = document.createElement("h3");
+    heading.className = "status-label";
+    heading.textContent = label;
+    section.appendChild(heading);
+
+    if (Array.isArray(listItems)) {
+      const list = document.createElement("ul");
+      list.className = "status-list";
+      for (const raw of listItems) {
+        const item = document.createElement("li");
+        item.textContent = String(raw || "").trim() || "-";
+        list.appendChild(item);
+      }
+      section.appendChild(list);
+      return section;
+    }
+
+    const value = document.createElement("p");
+    value.className = "status-value";
+    value.textContent = String(valueText || "-");
+    section.appendChild(value);
+    return section;
+  }
+
+  function renderStatusPanel(panelData) {
+    if (!statusPanel || !statusEmpty) {
+      return;
+    }
+
+    statusPanel.replaceChildren();
+    const data = panelData && typeof panelData === "object" ? panelData : null;
+    if (!data) {
+      statusEmpty.hidden = false;
+      statusEmpty.textContent = "Status unavailable.";
+      return;
+    }
+
+    const levelLine = `Level ${data.level || 1}  ${data.player_name || "Wanderer"}${
+      data.quest_title ? `  |  Quest: ${data.quest_title}` : ""
+    }`;
+    const healthLine = `${data.hp || 0}/${data.max_hp || 0}  ${data.hp_bar || ""}`.trim();
+    const skillItems = Array.isArray(data.skills) && data.skills.length ? data.skills : ["None learned yet"];
+    const equippedItems =
+      Array.isArray(data.equipped) && data.equipped.length ? data.equipped : ["No equipment"];
+    const inventoryItems =
+      Array.isArray(data.inventory) && data.inventory.length ? data.inventory : ["Inventory is empty"];
+
+    statusPanel.appendChild(createStatusSection("Level", levelLine));
+    statusPanel.appendChild(createStatusSection("Health", healthLine));
+    statusPanel.appendChild(createStatusSection("Skills", "", skillItems));
+    statusPanel.appendChild(createStatusSection("Equipped", "", equippedItems));
+    statusPanel.appendChild(createStatusSection("Inventory", "", inventoryItems));
+
+    statusEmpty.hidden = true;
+  }
+
+  function renderArt(payload) {
+    if (!artPanel || !artTitle) {
+      return;
+    }
+    const title = String(payload?.art_title || "Scene Art").trim() || "Scene Art";
+    const ascii = String(payload?.art_ascii || "").replaceAll("\r", "");
+    artTitle.textContent = title;
+    artPanel.textContent = ascii || "(no art available)";
+    artPanel.scrollTop = 0;
   }
 
   function priorityScore(rawValue) {
@@ -399,6 +484,8 @@
     } else {
       renderScreen(payload.screen);
     }
+    renderStatusPanel(payload.status_panel);
+    renderArt(payload);
     renderActions(payload.actions_heading, payload.actions, payload.hints, Boolean(payload.game_over));
     setCombatTint(payload.in_combat);
   }
@@ -499,9 +586,159 @@ from content.world import LOCATIONS, NPCS
 from game.engine import Engine
 from game import ui
 from game.state import Encounter, clamp_player_hp, create_initial_state, get_effective_stats
+from systems import quest
 
 _engine = Engine()
 _state = create_initial_state()
+_current_art_title = "Ascii Art Test"
+_SAMPLE_ASCII_ART = """
+                         XX###XX
+                      XX###########XX
+                    XX###############XX
+                  XX#########   ########XX
+                 X##########     #########X
+                X##########       #########X
+               X###########       ##########X
+               X###########       ##########X
+               X###########       ##########X
+               X############     ###########X
+                X###########################X
+                 X#########################X
+                  XX#####################XX
+                   X#####################X
+                  X#######################X
+                 X#########################X
+                X#############   ###########X
+               X#############     ###########X
+              X##############     ###########X
+             X###############     ###########X
+            X################     ###########X
+            X###############################X
+            X###############################X
+            X###############################X
+             X#############################X
+              XX#########################XX
+                XX#####################XX
+                  XXX###############XXX
+                     XXXXXXXXXXXXXXX
+""".strip("\n")
+_current_art_ascii = _SAMPLE_ASCII_ART
+
+_LOCATION_GLYPHS: dict[str, list[str]] = {
+    "old_shack": [
+        "           /\\",
+        "          /  \\",
+        "         /____\\",
+        "        | []  |",
+        "        |_____|",
+    ],
+    "forest": [
+        "      ^^   ^^   ^^",
+        "     ^^^  ^^^  ^^^",
+        "       ||   ||   ||",
+        "       ||   ||   ||",
+    ],
+    "swamp": [
+        "     ~~~  ~~~  ~~~",
+        "   ~~  ~~~~  ~~  ~~",
+        "      (  o_o  )",
+    ],
+    "underground_tunnel": [
+        "   ####################",
+        "  ##                  ##",
+        " ##      TUNNEL        ##",
+        "  ##                  ##",
+        "   ####################",
+    ],
+    "mountain_base": [
+        "        /\\",
+        "       /  \\   /\\",
+        "      / /\\ \\ /  \\",
+        "     /_/  \\_/ /\\ \\",
+    ],
+    "abandoned_mine": [
+        "     ||==========||",
+        "     ||   MINE   ||",
+        "     ||==========||",
+        "        /  __  /",
+    ],
+    "mountain_peak": [
+        "            /\\",
+        "           /  \\",
+        "          / /\\ \\",
+        "         /_/  \\_\\",
+    ],
+    "mountain_cave": [
+        "      _____________",
+        "   __/             \\__",
+        "  /   GOLD & BONES    \\",
+        " /_____________________\\",
+    ],
+    "desolate_road": [
+        "      ||         ||",
+        "      ||   ROAD  ||",
+        "    ==||=========||==",
+        "      ||         ||",
+    ],
+    "royal_yard": [
+        "        |>|",
+        "       /###\\",
+        "      |#####|",
+        "      |#####|",
+    ],
+    "black_hall": [
+        "     || || || || ||",
+        "     || || || || ||",
+        "     || || || || ||",
+        "       BLACK HALL",
+    ],
+    "dungeon": [
+        "     |||||||||||||||",
+        "     |  [======]   |",
+        "     |   DUNGEON   |",
+        "     |||||||||||||||",
+    ],
+    "witch_terrace": [
+        "        (  *  )",
+        "      *  (###)  *",
+        "        _/___\\_",
+        "       /  RUNE  \\",
+    ],
+}
+
+_NPC_GLYPHS: dict[str, list[str]] = {
+    "wise_old_man": [
+        "        .-''''-.",
+        "      /  .--.   \\",
+        "     |  (o  o)   |",
+        "     |    __     |",
+        "      \\  '--'   /",
+        "       '------'",
+    ],
+    "elle": [
+        "      .-''''-.",
+        "     /  .--.  \\",
+        "    |  (o  o)  |",
+        "    |   __     |",
+        "    |  /__\\    |",
+        "     \\        /",
+    ],
+}
+
+_BOSS_GLYPHS: list[str] = [
+    "      /\\  /\\  /\\",
+    "     /  \\/  \\/  \\",
+    "    |   B O S S  |",
+    "    |   HUNTER   |",
+    "     \\__________/",
+]
+
+_CREATURE_GLYPHS: list[str] = [
+    "        /\\_/\\",
+    "       ( o.o )",
+    "        > ^ <",
+    "      CREATURE",
+]
 
 _END_BOSS_IDS = {"king_makor", "onyx_witch"}
 _IMPORTANT_OR_RARE_ITEM_IDS = {
@@ -651,6 +888,97 @@ def _recommended_move_command() -> str | None:
     if not target_id or not direction:
         return None
     return f"move {direction}"
+
+def _boxed_art(title: str, glyph_lines: list[str]) -> str:
+    clean_title = str(title or "Unknown")
+    lines = [str(line).rstrip() for line in glyph_lines if str(line).strip()]
+    if not lines:
+        lines = ["(no art)"]
+    width = max(len(clean_title), *(len(line) for line in lines))
+    border = "+" + "-" * (width + 2) + "+"
+    output = [border, f"| {clean_title.ljust(width)} |", border]
+    for line in lines:
+        output.append(f"| {line.ljust(width)} |")
+    output.append(border)
+    return "\\n".join(output)
+
+def _location_art(location_id: str) -> tuple[str, str]:
+    loc = LOCATIONS.get(location_id, {})
+    title = loc.get("name", str(location_id))
+    glyph = _LOCATION_GLYPHS.get(location_id)
+    if not glyph:
+        glyph = [
+            "       _________",
+            "      /  ZONE  /|",
+            "     /________/ |",
+            "     |        | |",
+            "     |________|/",
+        ]
+    return title, _boxed_art(title, glyph)
+
+def _npc_art(npc_id: str) -> tuple[str, str]:
+    npc = NPCS.get(npc_id, {})
+    title = npc.get("name", npc_id)
+    glyph = _NPC_GLYPHS.get(npc_id, _NPC_GLYPHS.get("wise_old_man", []))
+    return title, _boxed_art(title, glyph)
+
+def _enemy_art(enemy_id: str) -> tuple[str, str]:
+    enemy = ENEMIES.get(enemy_id, {})
+    title = enemy.get("name", enemy_id)
+    if enemy.get("category") == "boss":
+        glyph = _BOSS_GLYPHS
+    else:
+        glyph = _CREATURE_GLYPHS
+    return title, _boxed_art(title, glyph)
+
+def _set_art(title: str, ascii_text: str) -> None:
+    global _current_art_title, _current_art_ascii
+    _current_art_title = str(title or "Scene Art")
+    _current_art_ascii = str(ascii_text or "").strip("\\n")
+
+def _matching_npc_id_from_command(command_text: str) -> str | None:
+    if not command_text.startswith("talk "):
+        return None
+    query = _normalize_token(command_text[5:])
+    if not query:
+        return None
+    location = LOCATIONS.get(_state.current_location_id, {})
+    for npc_id in location.get("npcs", []):
+        if npc_id == "elle" and "onyx_witch_defeated" not in _state.flags:
+            continue
+        npc_name = _normalize_token(NPCS.get(npc_id, {}).get("name", npc_id))
+        if query == _normalize_token(npc_id) or query == npc_name or query in npc_name:
+            return npc_id
+    return None
+
+def _status_panel_payload() -> dict:
+    stats = get_effective_stats(_state.player)
+    objective = quest.get_current_objective(_state)
+    hp_bar = ui.health_bar(_state.player.hp, stats["max_hp"])
+
+    equipped_lines = []
+    for slot, item_id in _state.player.equipment.items():
+        item_name = ITEMS.get(item_id, {}).get("name", item_id) if item_id else "none"
+        equipped_lines.append(f"{slot.title()}: {item_name}")
+
+    inventory_lines = []
+    for item_id, qty in sorted(_state.player.inventory.items()):
+        item = ITEMS.get(item_id, {})
+        item_name = item.get("name", item_id)
+        item_type = item.get("type", "unknown")
+        inventory_lines.append(f"{item_name} x{qty} ({item_type})")
+
+    return {
+        "player_name": _state.player.name,
+        "level": int(_state.player.level),
+        "hp": int(_state.player.hp),
+        "max_hp": int(stats["max_hp"]),
+        "hp_bar": hp_bar,
+        "skills": sorted(_state.player.skills),
+        "equipped": equipped_lines,
+        "inventory": inventory_lines,
+        "quest_title": objective.get("title", ""),
+    }
 
 def _encode_rng_state() -> str:
     state_bytes = pickle.dumps(_state.rng.getstate())
@@ -1078,6 +1406,9 @@ def _payload(screen: str) -> str:
             "screen": _strip_hint_block(screen),
             "game_over": bool(_state.game_over),
             "in_combat": bool(_state.active_encounter),
+            "status_panel": _status_panel_payload(),
+            "art_title": _current_art_title,
+            "art_ascii": _current_art_ascii,
             "actions_heading": heading,
             "actions": actions,
             "hints": hints,
@@ -1085,12 +1416,36 @@ def _payload(screen: str) -> str:
     )
 
 def web_initial() -> str:
+    if not _current_art_ascii:
+        location_title, location_ascii = _location_art(_state.current_location_id)
+        _set_art(location_title, location_ascii)
     return _payload(_engine.initial_screen(_state))
 
 def web_process(command: str) -> str:
-    screen = _engine.process_raw_command(_state, command)
-    payload = json.loads(_payload(screen))
     command_text = str(command or "").strip().lower()
+    previous_location = _state.current_location_id
+    previous_discovered = set(_state.discovered_locations)
+    previous_encounter_enemy = _state.active_encounter.enemy_id if _state.active_encounter else None
+
+    screen = _engine.process_raw_command(_state, command)
+
+    if _state.active_encounter and previous_encounter_enemy is None:
+        enemy_title, enemy_ascii = _enemy_art(_state.active_encounter.enemy_id)
+        _set_art(enemy_title, enemy_ascii)
+    elif command_text.startswith("talk "):
+        npc_id = _matching_npc_id_from_command(command_text)
+        if npc_id:
+            npc_title, npc_ascii = _npc_art(npc_id)
+            _set_art(npc_title, npc_ascii)
+    elif (
+        command_text.startswith("move ")
+        and _state.current_location_id != previous_location
+        and _state.current_location_id not in previous_discovered
+    ):
+        location_title, location_ascii = _location_art(_state.current_location_id)
+        _set_art(location_title, location_ascii)
+
+    payload = json.loads(_payload(screen))
     screen_text = str(payload.get("screen", ""))
     payload["append_only_notice"] = bool(
         command_text.startswith("skill") and "is on cooldown for" in screen_text
@@ -1100,6 +1455,7 @@ def web_process(command: str) -> str:
 def web_reset() -> str:
     global _state
     _state = create_initial_state()
+    _set_art("Ascii Art Test", _SAMPLE_ASCII_ART)
     return _payload(_engine.initial_screen(_state))
 
 def web_save_state() -> str:
@@ -1120,6 +1476,13 @@ def web_load_state(snapshot: str) -> str:
 
     if not _restore_state(state_payload):
         return json.dumps({"ok": False, "error": "restore_failed"})
+
+    if _state.active_encounter:
+        enemy_title, enemy_ascii = _enemy_art(_state.active_encounter.enemy_id)
+        _set_art(enemy_title, enemy_ascii)
+    else:
+        location_title, location_ascii = _location_art(_state.current_location_id)
+        _set_art(location_title, location_ascii)
 
     restored_payload = json.loads(_payload(_resume_screen()))
     return json.dumps({"ok": True, "payload": restored_payload})
@@ -1183,6 +1546,7 @@ def web_load_state(snapshot: str) -> str:
   }
 
   async function handleReset() {
+    clearSavedGame();
     const payload = parsePayload(api.reset());
     gameOver = Boolean(payload.game_over);
     renderPayload(payload);

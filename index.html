@@ -4,20 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>byte_world_ai Web CLI</title>
-  <link rel="stylesheet" href="static/styles.css?v=20260211e">
+  <link rel="stylesheet" href="static/styles.css?v=20260211f">
   <style>
-    /* Critical fallback to keep a two-pane layout even during stale asset cache windows. */
+    /* Critical fallback to keep a three-pane layout even during stale asset cache windows. */
     .terminal-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr);
+      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.05fr) minmax(260px, 1.15fr);
       gap: 14px;
       align-items: start;
     }
 
+    .status-shell,
+    .art-shell,
     .actions-shell {
       border: 1px solid #2a3448;
       border-radius: 12px;
       overflow: hidden;
+    }
+
+    .right-pane {
+      display: grid;
+      gap: 12px;
+      align-items: start;
     }
 
     .actions-head {
@@ -75,17 +83,30 @@
         <p id="status-line" class="status-line">Loading browser runtime...</p>
       </section>
 
-      <aside class="actions-shell" aria-live="polite">
-        <div class="actions-head">
-          <h2 id="actions-title" class="actions-title">Available actions</h2>
-          <button id="hints-toggle" class="hints-toggle" type="button">Hints: On</button>
-        </div>
-        <div id="actions-list" class="actions-list"></div>
-        <p id="actions-empty" class="actions-empty">Loading available actions...</p>
+      <aside class="status-shell" aria-live="polite">
+        <h2 class="status-title">Current Status</h2>
+        <div id="status-panel" class="status-panel"></div>
+        <p id="status-empty" class="status-empty">Loading status...</p>
+      </aside>
+
+      <aside class="right-pane">
+        <section class="art-shell" aria-live="polite">
+          <h2 id="art-title" class="art-title">Scene Art</h2>
+          <pre id="art-panel" class="art-panel"></pre>
+        </section>
+
+        <section class="actions-shell" aria-live="polite">
+          <div class="actions-head">
+            <h2 id="actions-title" class="actions-title">Available actions</h2>
+            <button id="hints-toggle" class="hints-toggle" type="button">Hints: On</button>
+          </div>
+          <div id="actions-list" class="actions-list"></div>
+          <p id="actions-empty" class="actions-empty">Loading available actions...</p>
+        </section>
       </aside>
     </div>
   </main>
 
-  <script src="static/app.js?v=20260211e"></script>
+  <script src="static/app.js?v=20260211f"></script>
 </body>
 </html>

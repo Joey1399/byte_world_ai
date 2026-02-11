@@ -25,6 +25,8 @@ body.combat-active {
 }
 
 body.combat-active .terminal-shell,
+body.combat-active .status-shell,
+body.combat-active .art-shell,
 body.combat-active .actions-shell {
   border-color: rgba(168, 78, 88, 0.8);
   box-shadow: 0 18px 36px rgba(120, 20, 35, 0.35);
@@ -52,7 +54,7 @@ body.combat-active .actions-shell {
 
 .terminal-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.05fr) minmax(260px, 1.15fr);
   gap: 14px;
   align-items: start;
 }
@@ -62,6 +64,8 @@ body.combat-active .actions-shell {
 }
 
 .terminal-shell,
+.status-shell,
+.art-shell,
 .actions-shell {
   border: 1px solid var(--panel-border);
   background: linear-gradient(180deg, #0e1420, var(--panel));
@@ -84,6 +88,86 @@ body.combat-active .actions-shell {
   word-break: break-word;
   line-height: 1.35;
   font-size: 0.96rem;
+}
+
+.right-pane {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+
+.status-title,
+.art-title {
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.status-panel {
+  padding: 10px 12px;
+  min-height: 56vh;
+  max-height: 70vh;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.status-section {
+  border: 1px solid rgba(145, 160, 187, 0.2);
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: rgba(8, 12, 20, 0.85);
+}
+
+.status-label {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-value {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.35;
+  font-size: 0.88rem;
+}
+
+.status-list {
+  margin: 0;
+  padding-left: 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.status-list li {
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+
+.status-empty {
+  margin: 0;
+  padding: 10px 12px 12px;
+  color: var(--muted);
+}
+
+.art-panel {
+  margin: 0;
+  padding: 8px;
+  min-height: 148px;
+  max-height: 188px;
+  overflow: auto;
+  white-space: pre;
+  line-height: 0.42rem;
+  font-size: 0.42rem;
+  color: #cbd6ed;
+  letter-spacing: 0;
+  background: rgba(8, 12, 20, 0.85);
 }
 
 .actions-title {
@@ -282,9 +366,17 @@ input:disabled {
   }
 
   .terminal,
-  .actions-list {
+  .actions-list,
+  .status-panel {
     min-height: 50vh;
     max-height: 62vh;
+  }
+
+  .art-panel {
+    min-height: 130px;
+    max-height: 170px;
+    line-height: 0.46rem;
+    font-size: 0.46rem;
   }
 
   .terminal {
