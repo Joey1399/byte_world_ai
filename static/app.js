@@ -399,19 +399,22 @@
 
     const lines = [];
     const name = String(data.name || "").trim();
-    const area = String(data.area || "").trim();
     if (name) {
-      lines.push(area ? `${name} [${area}]` : name);
+      lines.push(name);
     }
 
-    const exits = Array.isArray(data.exits)
-      ? data.exits.map((entry) => String(entry || "").trim()).filter(Boolean)
+    const creatures = Array.isArray(data.creatures)
+      ? data.creatures.filter((entry) => entry && typeof entry === "object")
       : [];
-    lines.push(`Exits: ${exits.length ? exits.join(", ") : "none"}`);
-
-    const questTitle = String(data.quest_title || "").trim();
-    if (questTitle) {
-      lines.push(`Quest: ${questTitle}`);
+    if (!creatures.length) {
+      lines.push("No huntable creatures in this location right now.");
+    } else {
+      lines.push("Creatures and possible drops:");
+      for (const creatureData of creatures) {
+        const creatureName = String(creatureData.name || "").trim() || "Unknown creature";
+        const dropSummary = String(creatureData.drops || "").trim() || "No drops listed.";
+        lines.push(`${creatureName}: ${dropSummary}`);
+      }
     }
 
     renderSimpleLines(locationPanel, locationEmpty, lines, "Location unavailable.");
@@ -768,7 +771,6 @@ from content.world import LOCATIONS, NPCS
 from game.engine import Engine
 from game import ui
 from game.state import Encounter, clamp_player_hp, create_initial_state, get_effective_stats
-from systems import quest
 
 _engine = Engine()
 _state = create_initial_state()
@@ -776,7 +778,7 @@ _current_art_title = "Scene Art"
 _current_art_ascii = ""
 _current_art_image = ""
 
-def _load_ascii_art(path: str) -> str:
+def _load_ascii_art(path: str, fallback: str = "") -> str:
     try:
         raw = Path(path).read_text(encoding="utf-8")
     except Exception:
@@ -791,51 +793,137 @@ def _load_ascii_art(path: str) -> str:
     if not lines:
         return ""
 
-    non_empty = [line for line in lines if line.strip()]
-    if non_empty:
-        left_pad = min(len(line) - len(line.lstrip(" ")) for line in non_empty)
-        if left_pad > 0:
-            lines = [line[left_pad:] if len(line) >= left_pad else "" for line in lines]
-    lines = [line.rstrip() for line in lines]
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
+    content_rows = [index for index, line in enumerate(lines) if line.strip()]
+    if not content_rows:
+        return ""
+    top = content_rows[0]
+    bottom = content_rows[-1]
+    lines = lines[top : bottom + 1]
 
-    if not lines:
+    left = min((len(line) - len(line.lstrip(" ")) for line in lines if line.strip()), default=0)
+    right = max((len(line.rstrip()) for line in lines), default=0)
+    if right <= left:
+        return ""
+    cropped = [line[left:right].rstrip() for line in lines]
+    while cropped and not cropped[-1].strip():
+        cropped.pop()
+    if not cropped:
         return ""
 
-    max_height = 34
-    max_width = 72
+    source_height = len(cropped)
+    source_width = max((len(line) for line in cropped), default=0)
+    if source_height <= 0 or source_width <= 0:
+        return ""
+    source_grid = [line.ljust(source_width) for line in cropped]
 
-    while len(lines) > max_height:
-        lines = [line for idx, line in enumerate(lines) if idx % 2 == 0]
+    target_max_width = 72
+    target_max_height = 34
+    scale = max(source_width / target_max_width, source_height / target_max_height, 1.0)
+    output_width = max(1, int(round(source_width / scale)))
+    output_height = max(1, int(round(source_height / scale)))
 
-    def _widest(rows: list[str]) -> int:
-        return max((len(row) for row in rows), default=0)
+    density_ramp = " .:-=+*#%@"
+    char_density = {
+        " ": 0.0,
+        ".": 0.16,
+        ":": 0.28,
+        "-": 0.38,
+        "=": 0.5,
+        "+": 0.62,
+        "*": 0.74,
+        "#": 0.84,
+        "%": 0.92,
+        "@": 1.0,
+    }
 
-    while _widest(lines) > max_width:
-        lines = [line[::2].rstrip() for line in lines]
-        while lines and not lines[0].strip():
-            lines.pop(0)
-        while lines and not lines[-1].strip():
-            lines.pop()
-        if not lines:
-            return ""
+    def _density(char: str) -> float:
+        if char in char_density:
+            return char_density[char]
+        return 0.66 if char.strip() else 0.0
 
-    centered_lines: list[str] = []
-    for line in lines:
-        content = line.rstrip()
-        if not content:
-            centered_lines.append("")
-            continue
-        pad = max(0, (max_width - len(content)) // 2)
-        centered_lines.append((" " * pad) + content)
+    output_lines: list[str] = []
+    for out_y in range(output_height):
+        y0 = int((out_y * source_height) / output_height)
+        y1 = int(((out_y + 1) * source_height) / output_height)
+        if y1 <= y0:
+            y1 = min(source_height, y0 + 1)
+        line_chars: list[str] = []
 
-    return "\n".join(centered_lines)
+        for out_x in range(output_width):
+            x0 = int((out_x * source_width) / output_width)
+            x1 = int(((out_x + 1) * source_width) / output_width)
+            if x1 <= x0:
+                x1 = min(source_width, x0 + 1)
 
-_OLD_SHACK_WISE_OLD_MAN_ASCII = _load_ascii_art("content/art/ascii-art.txt")
-_GIANT_FROG_ASCII = _load_ascii_art("content/art/frog.txt")
+            total = 0.0
+            count = 0
+            for src_y in range(y0, y1):
+                row = source_grid[src_y]
+                for src_x in range(x0, x1):
+                    total += _density(row[src_x])
+                    count += 1
+
+            average = (total / count) if count else 0.0
+            index = int(round(average * (len(density_ramp) - 1)))
+            index = max(0, min(len(density_ramp) - 1, index))
+            line_chars.append(density_ramp[index])
+
+        output_lines.append("".join(line_chars).rstrip())
+
+    while output_lines and not output_lines[0].strip():
+        output_lines.pop(0)
+    while output_lines and not output_lines[-1].strip():
+        output_lines.pop()
+    if not output_lines:
+        return ""
+
+    widest = max((len(line) for line in output_lines), default=0)
+    centered = [line.center(widest) for line in output_lines]
+    rendered = "\n".join(centered)
+    filled = sum(1 for line in centered for ch in line if ch != " ")
+    density = filled / max(1, widest * len(centered))
+    if widest < 30 or density > 0.55:
+        return str(fallback or "").strip("\n")
+    return rendered
+
+_WISE_OLD_MAN_FALLBACK = """
+              ___
+          .-''   ''-.
+        .'  .-.-.    '.
+       /   /  _  \\     \\
+      |   |  (o)  |     |
+      |   |   ^   |     |
+      |   |  '-'  |     |
+      |    \\.___./     |
+       \\      |       /
+        '.    |    _.'
+          '-._|_.-'
+            /_|_\\
+         __/  |  \\__
+        /___  |  ___\\
+            |_|_|
+""".strip("\n")
+
+_GIANT_FROG_FALLBACK = """
+               _   _
+             _(.)_(.)_
+          _ (   _   ) _ 
+         / \\/-----'\\/ \\
+       __\\ ( (\\___/) ) /__
+       )   /\\( 0 0 )/\\   (
+       )  /  \\  ^  /  \\  (
+       )  \\__/\\___/\\__/  (
+          /_/ /___\\ \\_\\
+""".strip("\n")
+
+_OLD_SHACK_WISE_OLD_MAN_ASCII = _load_ascii_art(
+    "content/art/ascii-art.txt",
+    fallback=_WISE_OLD_MAN_FALLBACK,
+)
+_GIANT_FROG_ASCII = _load_ascii_art(
+    "content/art/frog.txt",
+    fallback=_GIANT_FROG_FALLBACK,
+)
 
 _LOCATION_GLYPHS: dict[str, list[str]] = {
     "old_shack": [
@@ -1053,6 +1141,61 @@ def _color_item_name(item_id: str, item_name: str) -> str:
 def _color_enemy_name(enemy_name: str) -> str:
     css_class = _ENEMY_COLOR_BY_NAME.get(str(enemy_name or "").strip().lower(), "")
     return _paint(enemy_name, _ansi_for_css_class(css_class))
+
+def _item_stat_parts(item_id: str) -> list[str]:
+    item = ITEMS.get(item_id, {})
+    parts: list[str] = []
+    attack = int(item.get("attack_bonus", 0))
+    defense = int(item.get("defense_bonus", 0))
+    health = int(item.get("max_hp_bonus", 0))
+    heal = int(item.get("heal_amount", 0))
+    skill_points = int(item.get("skill_points_bonus", 0))
+
+    if attack:
+        parts.append(f"{_paint('ATK', _ANSI_PINK)} {attack:+d}")
+    if defense:
+        parts.append(f"{_paint('DEF', _ANSI_PINK)} {defense:+d}")
+    if health:
+        parts.append(f"{_paint('HEALTH', _ANSI_PINK)} {health:+d}")
+    if heal:
+        parts.append(f"{_paint('HEAL', _ANSI_HEALTH_GREEN)} +{heal}")
+    if skill_points:
+        parts.append(f"{_paint('SP', _ANSI_PINK)} +{skill_points}")
+    return parts
+
+def _item_stat_suffix(item_id: str) -> str:
+    parts = _item_stat_parts(item_id)
+    if not parts:
+        return ""
+    return " [" + ", ".join(parts) + "]"
+
+def _item_drop_display(item_id: str) -> str:
+    item = ITEMS.get(item_id, {})
+    item_name = item.get("name", item_id)
+    return f"{_color_item_name(item_id, item_name)}{_item_stat_suffix(item_id)}"
+
+def _enemy_drop_summary(enemy_id: str) -> str:
+    enemy = ENEMIES.get(enemy_id, {})
+    entries: list[str] = [
+        "Healing bundle x5-10 "
+        + f"({_item_drop_display('sturdy_bandage')} / {_item_drop_display('minor_potion')})"
+    ]
+
+    seen: set[str] = set()
+    for item_id in enemy.get("guaranteed_drops", []):
+        if item_id in seen:
+            continue
+        seen.add(item_id)
+        entries.append(_item_drop_display(item_id))
+
+    for loot_row in enemy.get("loot_table", []):
+        item_id = str(loot_row[0]) if isinstance(loot_row, (list, tuple)) and loot_row else str(loot_row)
+        if not item_id or item_id in seen:
+            continue
+        seen.add(item_id)
+        entries.append(_item_drop_display(item_id))
+
+    return ", ".join(entries)
 
 def _normalize_token(text: str) -> str:
     return "".join(ch for ch in str(text or "").strip().lower() if ch.isalnum() or ch.isspace())
@@ -1274,7 +1417,7 @@ def _inventory_panel_payload() -> list[str]:
         item_name = item.get("name", item_id)
         colored_item_name = _color_item_name(item_id, item_name)
         item_type = item.get("type", "unknown")
-        lines.append(f"{colored_item_name} x{qty} ({item_type})")
+        lines.append(f"{colored_item_name} x{qty} ({item_type}){_item_stat_suffix(item_id)}")
     remaining = len(inventory_items) - min(len(inventory_items), max_rows)
     if remaining > 0:
         lines.append(f"... +{remaining} more item stacks")
@@ -1282,12 +1425,40 @@ def _inventory_panel_payload() -> list[str]:
 
 def _location_panel_payload() -> dict:
     location = LOCATIONS.get(_state.current_location_id, {})
-    objective = quest.get_current_objective(_state)
+    encounter_ids: list[str] = []
+    for row in location.get("encounters", []):
+        if isinstance(row, (list, tuple)) and row:
+            encounter_ids.append(str(row[0]))
+
+    boss_id = str(location.get("boss_id", "") or "").strip()
+    boss_flag = str(location.get("boss_flag", "") or "").strip()
+    if boss_id and boss_id in ENEMIES:
+        if not boss_flag or boss_flag not in _state.flags:
+            encounter_ids.append(boss_id)
+
+    unique_enemy_ids: list[str] = []
+    seen_enemy_ids: set[str] = set()
+    for enemy_id in encounter_ids:
+        if enemy_id in seen_enemy_ids or enemy_id not in ENEMIES:
+            continue
+        seen_enemy_ids.add(enemy_id)
+        unique_enemy_ids.append(enemy_id)
+
+    unique_enemy_ids.sort(key=lambda enemy_id: ENEMIES.get(enemy_id, {}).get("name", enemy_id))
+    creatures = []
+    for enemy_id in unique_enemy_ids:
+        enemy = ENEMIES.get(enemy_id, {})
+        enemy_name = enemy.get("name", enemy_id)
+        creatures.append(
+            {
+                "name": _color_enemy_name(enemy_name),
+                "drops": _enemy_drop_summary(enemy_id),
+            }
+        )
+
     return {
         "name": location.get("name", _state.current_location_id),
-        "area": location.get("area", "Unknown"),
-        "exits": sorted(location.get("exits", {}).keys()),
-        "quest_title": _paint(objective.get("title", ""), _ANSI_PURPLE),
+        "creatures": creatures,
     }
 
 def _kill_panel_payload() -> list[dict]:
@@ -1548,10 +1719,18 @@ def _action_priority(action: dict) -> int:
     score = 40
 
     if verb == "train":
-        score = 220
+        argument = action["argument"].strip().lower()
         if command == "train all":
-            score = 235
-        return score
+            return 248
+        if argument.startswith("attack"):
+            return 246
+        if argument.startswith("defense"):
+            return 245
+        if argument.startswith("health"):
+            return 244
+        if command == "train a,b,c" or "," in argument:
+            return 243
+        return 242
 
     if verb == "equip":
         if _is_equip_upgrade_action(action):
@@ -1665,12 +1844,30 @@ def _hint_recommendations(actions: list[dict]) -> list[dict[str, str]]:
         return hints[:4]
 
     if _state.player.skill_points > 0:
-        train_cmd = "train all" if _state.player.skill_points >= 3 else "train attack 1"
+        if _state.player.skill_points >= 3:
+            _add_hint(
+                hints,
+                seen,
+                _find_action(actions, "train all"),
+                "Spend points across all core stats for immediate overall scaling.",
+            )
         _add_hint(
             hints,
             seen,
-            _find_action(actions, train_cmd) or (_find_actions_by_prefix(actions, "train ")[0] if _find_actions_by_prefix(actions, "train ") else None),
-            "Spend skill points early to improve survivability and damage curve.",
+            _find_action(actions, "train attack 1"),
+            "Increase base attack for faster fights and easier farming.",
+        )
+        _add_hint(
+            hints,
+            seen,
+            _find_action(actions, "train defense 1"),
+            "Raise defense to reduce incoming damage every turn.",
+        )
+        _add_hint(
+            hints,
+            seen,
+            _find_action(actions, "train health 1"),
+            "Increase max health to improve survivability and potion value.",
         )
 
     upgrade_actions = [action for action in actions if _is_equip_upgrade_action(action)]
@@ -1706,7 +1903,7 @@ def _hint_recommendations(actions: list[dict]) -> list[dict[str, str]]:
     _add_hint(hints, seen, _find_action(actions, "quest"), "Check objective text if you are unsure about next steps.")
     _add_hint(hints, seen, _find_action(actions, "status"), "Review HP and stat readiness before moving on.")
 
-    return hints[:5]
+    return hints[:8]
 
 def _action_payload() -> tuple[str, list[dict], list[dict[str, str]]]:
     if _state.game_over:

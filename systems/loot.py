@@ -38,6 +38,28 @@ def _item_name(item_id: str) -> str:
     return ITEMS.get(item_id, {}).get("name", item_id)
 
 
+def _grant_healing_supplies(state: GameState) -> str:
+    """Every defeated enemy yields a 5-10 stack of healing supplies."""
+    total = state.rng.randint(5, 10)
+    bandages = state.rng.randint(0, total)
+    potions = total - bandages
+
+    if bandages > 0:
+        add_item(state.player, "sturdy_bandage", bandages)
+    if potions > 0:
+        add_item(state.player, "minor_potion", potions)
+
+    parts: list[str] = []
+    if bandages > 0:
+        parts.append(f"Sturdy Bandage x{bandages}")
+    if potions > 0:
+        parts.append(f"Minor Potion x{potions}")
+    if not parts:
+        parts.append("Minor Potion x0")
+
+    return f"Battle supplies found ({total} total): {', '.join(parts)}."
+
+
 def _item_power_tuple(item_id: Optional[str]) -> tuple[float, int, int, int, int]:
     """Comparable combat value tuple for best-in-slot selection."""
     if not item_id:
@@ -72,6 +94,8 @@ def grant_rewards(state: GameState, enemy_id: str) -> List[str]:
         state.player.skill_points += skill_reward
         messages.append(f"You gain {skill_reward} skill points.")
 
+    messages.append(_grant_healing_supplies(state))
+
     drops: List[str] = list(enemy.get("guaranteed_drops", []))
 
     loot_table = enemy.get("loot_table", [])
@@ -98,6 +122,8 @@ def grant_rewards(state: GameState, enemy_id: str) -> List[str]:
 
     seen = set()
     for item_id in drops:
+        if item_id in {"sturdy_bandage", "minor_potion"}:
+            continue
         if item_id in seen:
             continue
         seen.add(item_id)

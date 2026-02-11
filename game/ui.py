@@ -330,6 +330,30 @@ def format_status(status: dict) -> str:
     )
 
 
+def _item_stat_suffix(item: dict) -> str:
+    parts: list[str] = []
+    attack = int(item.get("attack_bonus", 0))
+    defense = int(item.get("defense_bonus", 0))
+    health = int(item.get("max_hp_bonus", 0))
+    heal = int(item.get("heal_amount", 0))
+    skill_points = int(item.get("skill_points_bonus", 0))
+
+    if attack:
+        parts.append(f"attack {attack:+d}")
+    if defense:
+        parts.append(f"defense {defense:+d}")
+    if health:
+        parts.append(f"health {health:+d}")
+    if heal:
+        parts.append(f"heal +{heal}")
+    if skill_points:
+        parts.append(f"skill points +{skill_points}")
+
+    if not parts:
+        return ""
+    return " [" + ", ".join(parts) + "]"
+
+
 def format_inventory(inventory: Dict[str, int]) -> str:
     if not inventory:
         return "Inventory is empty."
@@ -338,7 +362,7 @@ def format_inventory(inventory: Dict[str, int]) -> str:
         item = ITEMS.get(item_id, {})
         name = item.get("name", item_id)
         item_type = item.get("type", "unknown")
-        lines.append(f"  {name} x{qty} ({item_type})")
+        lines.append(f"  {name} x{qty} ({item_type}){_item_stat_suffix(item)}")
     return "\n".join(lines)
 
 

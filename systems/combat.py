@@ -175,6 +175,13 @@ def _resolve_victory(state: GameState) -> List[str]:
 
     messages.extend(grant_rewards(state, enemy_id))
 
+    max_hp = int(get_effective_stats(state.player)["max_hp"])
+    missing_hp = max(0, max_hp - state.player.hp)
+    if missing_hp > 0:
+        recovered = max(1, (missing_hp + 1) // 2)
+        state.player.hp = min(max_hp, state.player.hp + recovered)
+        messages.append(f"Victory recovery restores {recovered} HP ({state.player.hp}/{max_hp}).")
+
     state.active_encounter = None
     clear_ring_surge(state)
     return messages
