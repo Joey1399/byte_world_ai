@@ -8,7 +8,7 @@ You can play it:
 
 ## Play Online
 
-Live site: `https://joey1399.github.io/byte_world_ai/`
+Live site: `https://jordanbailey00.github.io/byte_world_ai/`
 
 ## Table of Contents
 
